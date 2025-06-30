@@ -1,9 +1,3 @@
-extern "C" {
-
-#include "enklume/block_data.h"
-
-}
-
 #include "chunk_mesh.h"
 #include "nasl/nasl.h"
 
@@ -150,7 +144,7 @@ static void paste_plus_z_face(std::vector<uint8_t>& g, nasl::vec3 color, unsigne
 
 #undef V
 
-static BlockData access_safe(const ChunkData* chunk, ChunkNeighbors& neighbours, int x, int y, int z) {
+BlockData access_safe(const ChunkData* chunk, ChunkNeighbors& neighbours, int x, int y, int z) {
     unsigned int i, k;
     if (x < 0) {
         i = 0;

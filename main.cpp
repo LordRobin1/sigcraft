@@ -4,6 +4,9 @@
 #include "world.h"
 
 #include <cmath>
+#include <iostream>
+#include <ostream>
+
 #include "nasl/nasl.h"
 #include "nasl/nasl_mat.h"
 
@@ -13,8 +16,10 @@ using namespace nasl;
 
 struct {
     mat4 matrix;
-    ivec3 chunk_position;
-    float time;
+    mat4 inverse_matrix;
+    vec3 camera_position;
+    VkDeviceAddress voxel_buffer;
+    vec2 screen_size;
 } push_constants;
 
 Camera camera;
@@ -29,7 +34,7 @@ void camera_update(GLFWwindow*, CameraInput* input);
 bool reload_shaders = false;
 
 struct Shaders {
-    std::vector<std::string> files = { "basic.vert.spv", "basic.frag.spv" };
+    std::vector<std::string> files = { "voxel.vert.spv", "voxel.frag.spv" };
 
     std::vector<std::unique_ptr<imr::ShaderModule>> modules;
     std::vector<std::unique_ptr<imr::ShaderEntryPoint>> entry_points;
@@ -52,7 +57,7 @@ struct Shaders {
         VkVertexInputBindingDescription bindings[] = {
             {
                 .binding = 0,
-                .stride = sizeof(ChunkMesh::Vertex),
+                .stride = sizeof(ChunkVoxels::Vertex),
                 .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
             },
         };
@@ -64,18 +69,18 @@ struct Shaders {
                 .format = VK_FORMAT_R16G16B16_SINT,
                 .offset = 0,
             },
-            {
-                .location = 1,
-                .binding = 0,
-                .format = VK_FORMAT_R8G8B8_SNORM,
-                .offset = offsetof(ChunkMesh::Vertex, nnx),
-            },
-            {
-                .location = 2,
-                .binding = 0,
-                .format = VK_FORMAT_R8G8B8_UNORM,
-                .offset = offsetof(ChunkMesh::Vertex, br),
-            },
+            // {
+            //     .location = 1,
+            //     .binding = 0,
+            //     .format = VK_FORMAT_R8G8B8_SNORM,
+            //     .offset = offsetof(ChunkMesh::Vertex, nnx),
+            // },
+            // {
+            //     .location = 2,
+            //     .binding = 0,
+            //     .format = VK_FORMAT_R8G8B8_UNORM,
+            //     .offset = offsetof(ChunkMesh::Vertex, br),
+            // },
         };
 
         VkPipelineVertexInputStateCreateInfo vertex_input {
@@ -228,7 +233,11 @@ int main(int argc, char** argv) {
             auto& pipeline = shaders->pipeline;
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline());
 
-            push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
+            push_constants.matrix = m;
+            push_constants.inverse_matrix = invert_mat4(m);
+            push_constants.camera_position = camera.position;
+            push_constants.screen_size = vec2(context.image().size().width, context.image().size().height);
+            // push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
 
             context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]() {
                 //for (auto pos : positions) {
@@ -240,14 +249,13 @@ int main(int argc, char** argv) {
                 //    vkCmdDraw(cmdbuf, 12 * 3, 1, 0, 0);
                 //}
 
-                push_constants.matrix = m;
 
                 auto load_chunk = [&](int cx, int cz) {
                     auto loaded = world.get_loaded_chunk(cx, cz);
                     if (!loaded)
                         world.load_chunk(cx, cz);
                     else {
-                        if (loaded->mesh)
+                        if (loaded->voxels)
                             return;
 
                         bool all_neighbours_loaded = true;
@@ -265,7 +273,7 @@ int main(int argc, char** argv) {
                             }
                         }
                         if (all_neighbours_loaded)
-                            loaded->mesh = std::make_unique<ChunkMesh>(device, n);
+                            loaded->voxels = std::make_unique<ChunkVoxels>(device, n);
                     }
                 };
 
@@ -281,9 +289,9 @@ int main(int argc, char** argv) {
 
                 for (auto chunk : world.loaded_chunks()) {
                     if (abs(chunk->cx - player_chunk_x) > radius || abs(chunk->cz - player_chunk_z) > radius) {
-                        std::unique_ptr<ChunkMesh> stolen = std::move(chunk->mesh);
+                        std::unique_ptr<ChunkVoxels> stolen = std::move(chunk->voxels);
                         if (stolen) {
-                            ChunkMesh* released = stolen.release();
+                            ChunkVoxels* released = stolen.release();
                             context.frame().addCleanupAction([=]() {
                                 delete released;
                             });
@@ -292,17 +300,21 @@ int main(int argc, char** argv) {
                         continue;
                     }
 
-                    auto& mesh = chunk->mesh;
-                    if (!mesh || mesh->num_verts == 0)
+                    auto& voxels = chunk->voxels;
+                    if (!voxels || voxels->num_voxels == 0)
                         continue;
 
-                    push_constants.chunk_position = { chunk->cx, 0, chunk->cz };
+                    // push_constants.chunk_position = { chunk->cx, 0, chunk->cz };
+                    push_constants.voxel_buffer = voxels->voxel_buffer_device_address();
+                    std::cout << voxels->voxel_buffer_device_address() << std::endl;
+
                     vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants), &push_constants);
 
-                    vkCmdBindVertexBuffers(cmdbuf, 0, 1, &mesh->buf->handle, tmpPtr((VkDeviceSize) 0));
+                    vkCmdBindVertexBuffers(cmdbuf, 0, 1, &voxels->vert_buf->handle, tmpPtr((VkDeviceSize) 0));
 
-                    assert(mesh->num_verts > 0);
-                    vkCmdDraw(cmdbuf, mesh->num_verts, 1, 0, 0);
+                    assert(voxels->voxel_buf->size > 0);
+                    assert(voxels->num_verts / voxels->num_voxels == 6);
+                    vkCmdDraw(cmdbuf, voxels->num_verts, 1, 0, 0);
                 }
             });
 

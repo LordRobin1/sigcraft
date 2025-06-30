@@ -9,6 +9,7 @@ extern "C" {
 }
 
 #include "chunk_mesh.h"
+#include "voxel.h"
 
 struct Int2 {
     int32_t x, z;
@@ -35,7 +36,7 @@ struct Chunk {
     int cx, cz;
     McChunk* enkl_chunk = nullptr;
     ChunkData data = {};
-    std::unique_ptr<ChunkMesh> mesh;
+    std::unique_ptr<ChunkVoxels> voxels;
 
     Chunk(Region&, int x, int z);
     Chunk(const Chunk&) = delete;

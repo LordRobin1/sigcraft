@@ -5,9 +5,15 @@
 
 #include <cstddef>
 
+extern "C" {
+#include "enklume/block_data.h"
+}
+
 struct ChunkNeighbors {
     const ChunkData* neighbours[3][3];
 };
+
+BlockData access_safe(const ChunkData* chunk, ChunkNeighbors& neighbours, int x, int y, int z);
 
 struct ChunkMesh {
     std::unique_ptr<imr::Buffer> buf;
