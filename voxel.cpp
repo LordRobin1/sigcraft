@@ -6,7 +6,7 @@ extern "C" {
 #include "enklume/block_data.h"
 }
 
-void chunk_voxels(const ChunkData* chunk, ChunkNeighbors& neighbours, std::vector<uint8_t>& voxel_buffer, std::vector<uint8_t> vert_buffer, size_t* num_voxels, size_t* num_verts) {
+void chunk_voxels(const ChunkData* chunk, ChunkNeighbors& neighbours, std::vector<uint8_t>& voxel_buffer, std::vector<uint8_t>& vert_buffer, size_t* num_voxels, size_t* num_verts) {
     for (int section = 0; section < CUNK_CHUNK_SECTIONS_COUNT; section++) {
         for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
             for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
@@ -31,6 +31,7 @@ void chunk_voxels(const ChunkData* chunk, ChunkNeighbors& neighbours, std::vecto
 
                     if (block_data != BlockAir && !occluded) {
                         Voxel v;
+                        // TODO adding section * CUNK_CHUNK_SIZE doesn't make any sense
                         v.position.x = x + section * CUNK_CHUNK_SIZE;
                         v.position.y = world_y;
                         v.position.z = z + section * CUNK_CHUNK_SIZE;
