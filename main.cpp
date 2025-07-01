@@ -55,20 +55,20 @@ struct Shaders {
         rts.depth = depth;
 
         VkVertexInputBindingDescription bindings[] = {
-            {
-                .binding = 0,
-                .stride = sizeof(ChunkVoxels::Vertex),
-                .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-            },
+            // {
+            //     .binding = 0,
+            //     .stride = sizeof(ChunkVoxels::Vertex),
+            //     .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+            // },
         };
 
         VkVertexInputAttributeDescription attributes[] = {
-            {
-                .location = 0,
-                .binding = 0,
-                .format = VK_FORMAT_R16G16B16_SINT,
-                .offset = 0,
-            },
+            // {
+            //     .location = 0,
+            //     .binding = 0,
+            //     .format = VK_FORMAT_R16G16B16_SINT,
+            //     .offset = 0,
+            // },
             // {
             //     .location = 1,
             //     .binding = 0,
@@ -157,6 +157,19 @@ int main(int argc, char** argv) {
     auto shaders = std::make_unique<Shaders>(device, swapchain);
 
     auto& vk = device.dispatch;
+
+    // ========= Upload a single voxel to the GPU =========
+    std::vector<uint8_t> data;
+    const Voxel v{
+        .position = { 0, 0, 0 },
+        .color = { 255, 0, 0 },
+    };
+    v.copy_to(data);
+    auto buffer = std::make_unique<imr::Buffer>(device, data.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+    buffer->uploadDataSync(0, data.size(), data.data());
+    push_constants.voxel_buffer = buffer->device_address();
+    // =====================================================
+
     while (!glfwWindowShouldClose(window)) {
         fps_counter.tick();
         fps_counter.updateGlfwWindowTitle(window);
@@ -228,7 +241,7 @@ int main(int argc, char** argv) {
             m = m * flip_y;
             mat4 view_mat = camera_get_view_mat4(&camera, context.image().size().width, context.image().size().height);
             m = m * view_mat;
-            m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f));
+            //m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f));
 
             auto& pipeline = shaders->pipeline;
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline());
@@ -287,35 +300,38 @@ int main(int argc, char** argv) {
                     }
                 }
 
-                for (auto chunk : world.loaded_chunks()) {
-                    if (abs(chunk->cx - player_chunk_x) > radius || abs(chunk->cz - player_chunk_z) > radius) {
-                        std::unique_ptr<ChunkVoxels> stolen = std::move(chunk->voxels);
-                        if (stolen) {
-                            ChunkVoxels* released = stolen.release();
-                            context.frame().addCleanupAction([=]() {
-                                delete released;
-                            });
-                        }
-                        world.unload_chunk(chunk);
-                        continue;
-                    }
+                // for (auto chunk : world.loaded_chunks()) {
+                //     if (abs(chunk->cx - player_chunk_x) > radius || abs(chunk->cz - player_chunk_z) > radius) {
+                //         std::unique_ptr<ChunkVoxels> stolen = std::move(chunk->voxels);
+                //         if (stolen) {
+                //             ChunkVoxels* released = stolen.release();
+                //             context.frame().addCleanupAction([=]() {
+                //                 delete released;
+                //             });
+                //         }
+                //         world.unload_chunk(chunk);
+                //         continue;
+                //     }
+                //
+                //     auto& voxels = chunk->voxels;
+                //     if (!voxels || voxels->num_voxels == 0)
+                //         continue;
+                //
+                //     // push_constants.chunk_position = { chunk->cx, 0, chunk->cz };
+                //     push_constants.voxel_buffer = voxels->voxel_buffer_device_address();
+                //
+                //     vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants), &push_constants);
+                //
+                //     vkCmdBindVertexBuffers(cmdbuf, 0, 1, &voxels->vert_buf->handle, tmpPtr((VkDeviceSize) 0));
+                //
+                //     assert(voxels->voxel_buf->size > 0);
+                //     assert(voxels->num_verts / voxels->num_voxels == 6);
+                //     vkCmdDraw(cmdbuf, voxels->num_verts, 1, 0, 0);
+                // }
 
-                    auto& voxels = chunk->voxels;
-                    if (!voxels || voxels->num_voxels == 0)
-                        continue;
-
-                    // push_constants.chunk_position = { chunk->cx, 0, chunk->cz };
-                    push_constants.voxel_buffer = voxels->voxel_buffer_device_address();
-                    std::cout << voxels->voxel_buffer_device_address() << std::endl;
-
-                    vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants), &push_constants);
-
-                    vkCmdBindVertexBuffers(cmdbuf, 0, 1, &voxels->vert_buf->handle, tmpPtr((VkDeviceSize) 0));
-
-                    assert(voxels->voxel_buf->size > 0);
-                    assert(voxels->num_verts / voxels->num_voxels == 6);
-                    vkCmdDraw(cmdbuf, voxels->num_verts, 1, 0, 0);
-                }
+                vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants), &push_constants);
+                // no vertex buffer
+                vkCmdDraw(cmdbuf, 6 /* single voxel */, 1, 0, 0);
             });
 
             auto now = imr_get_time_nano();

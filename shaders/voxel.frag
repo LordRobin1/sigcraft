@@ -12,7 +12,8 @@ struct Box {
 layout(location = 0) in Box box;
 layout(location = 6) in vec3 color;
 layout(location = 7) in vec3 cameraPosition;
-layout(location = 8) in vec3 fragPosition;
+layout(location = 8) in vec2 screenSize;
+layout(location = 9) in mat4 inverseProjViewMatrix;
 
 layout(location = 0) out vec4 colorOut;
 
@@ -36,11 +37,17 @@ bool ourHitAABox(vec3 boxCenter, vec3 boxRadius, vec3 rayOrigin, vec3 rayDirecti
 }
 
 void main() {
+    colorOut = vec4(1.0);
+    return;
+    // fragPosition in camera space
+    vec3 ndc = vec3(gl_FragCoord.xy / screenSize, gl_FragCoord.z) * 2.0 - 1.0; // Assuming viewport size of 800x600
+    vec4 clip  = inverseProjViewMatrix * vec4(ndc, 1.0);
+
+    vec3 fragPosition = clip.xyz / clip.w;
+
     vec3 rayOrigin = cameraPosition;
     vec3 rayDirection = normalize(fragPosition - rayOrigin);
 
     if (ourHitAABox(box.center, box.radius, rayOrigin, rayDirection, 1 / rayDirection))
         colorOut = vec4(color, 1.0);
-    else
-        discard;
 }
