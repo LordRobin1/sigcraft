@@ -34,11 +34,11 @@ layout(location = 9) out mat4 inverseProjViewMatrix;
 
 const vec2 fullscreenVerts[6] = vec2[](
     vec2(-1.0, -1.0),
-    vec2( 1.0,  1.0),
     vec2( 1.0, -1.0),
+    vec2( 1.0,  1.0),
     vec2(-1.0, -1.0),
-    vec2(-1.0,  1.0),
-    vec2( 1.0,  1.0)
+    vec2( 1.0,  1.0),
+    vec2(-1.0,  1.0)
 );
 
 void main() {
@@ -54,7 +54,7 @@ void main() {
     screenSize = push_constants.screen_size;
 
     // emulate billboard for debugging
-    vec4 position = push_constants.proj_view_mat * vec4(vec3(voxel_position) + vec3(ndc, -1.0), 1.0);
+    //vec4 position = push_constants.proj_view_mat * vec4(vec3(voxel_position) + vec3(ndc, 0.0), 1.0);
 
-    gl_Position = position;
+    gl_Position = vec4(ndc, 0.0, 1.0);
 }

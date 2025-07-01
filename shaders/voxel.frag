@@ -37,8 +37,6 @@ bool ourHitAABox(vec3 boxCenter, vec3 boxRadius, vec3 rayOrigin, vec3 rayDirecti
 }
 
 void main() {
-    colorOut = vec4(1.0);
-    return;
     // fragPosition in camera space
     vec3 ndc = vec3(gl_FragCoord.xy / screenSize, gl_FragCoord.z) * 2.0 - 1.0; // Assuming viewport size of 800x600
     vec4 clip  = inverseProjViewMatrix * vec4(ndc, 1.0);
@@ -50,4 +48,6 @@ void main() {
 
     if (ourHitAABox(box.center, box.radius, rayOrigin, rayDirection, 1 / rayDirection))
         colorOut = vec4(color, 1.0);
+    else
+        discard;
 }
