@@ -154,7 +154,7 @@ BlockData access_safe(const ChunkData* chunk, ChunkNeighbors& neighbours, int x,
         i = 2;
     }
 
-    if (y < 0 || y > CUNK_CHUNK_MAX_HEIGHT)
+    if (y < 0 || y >= CUNK_CHUNK_MAX_HEIGHT)
         return BlockAir;
 
     if (z < 0) {
