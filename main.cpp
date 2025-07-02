@@ -158,13 +158,26 @@ int main(int argc, char** argv) {
 
     auto& vk = device.dispatch;
 
-    // ========= Upload a single voxel to the GPU =========
+    // ========= Upload a some voxels to the GPU =========
+    constexpr size_t voxel_num = 3;
     std::vector<uint8_t> data;
-    const Voxel v{
-        .position = { 0, 0, 0 },
-        .color = { 255, 0, 0 },
+    const Voxel v[voxel_num] = {
+        {
+            .position = { 0, 0, 0 },
+            .color = { 255, 0, 0 },
+        },
+        {
+            .position = { 2, 0, 0 },
+            .color = { 0, 255, 0 },
+        },
+        {
+            .position = { 0, 0, 2 },
+            .color = { 0, 0, 255 },
+        }
     };
-    v.copy_to(data);
+    for (auto voxel : v) {
+        voxel.copy_to(data);
+    }
     auto buffer = std::make_unique<imr::Buffer>(device, data.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
     buffer->uploadDataSync(0, data.size(), data.data());
     push_constants.voxel_buffer = buffer->device_address();
@@ -331,7 +344,7 @@ int main(int argc, char** argv) {
 
                 vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants), &push_constants);
                 // no vertex buffer
-                vkCmdDraw(cmdbuf, 6 /* single voxel */, 1, 0, 0);
+                vkCmdDraw(cmdbuf,  voxel_num * 6 /* billboard verts */, 1, 0, 0);
             });
 
             auto now = imr_get_time_nano();
