@@ -27,26 +27,13 @@ struct Voxel {
 
 struct ChunkVoxels {
     std::unique_ptr<imr::Buffer> voxel_buf;
-    std::unique_ptr<imr::Buffer> vert_buf;
     size_t num_voxels;
-    size_t num_verts;
 
     ChunkVoxels(imr::Device&, ChunkNeighbors& neighbors);
 
     [[nodiscard]] VkDeviceAddress voxel_buffer_device_address() const {
         return voxel_buf->device_address();
     }
-
-    struct Vertex {
-        int16_t vx, vy, vz;
-
-        void copy_to(std::vector<uint8_t>& buf) const {
-            uint8_t tmp[sizeof(Vertex)];
-            memcpy(tmp, this, sizeof(Vertex));
-            for (auto b : tmp)
-                buf.push_back(b);
-        }
-    };
 };
 
 
