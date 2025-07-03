@@ -24,7 +24,7 @@ struct {
 
 Camera camera;
 CameraFreelookState camera_state = {
-    .fly_speed = 100.0f,
+    .fly_speed = 50.0f,
     .mouse_sensitivity = 1,
 };
 CameraInput camera_input;
@@ -54,41 +54,16 @@ struct Shaders {
         };
         rts.depth = depth;
 
-        VkVertexInputBindingDescription bindings[] = {
-            // {
-            //     .binding = 0,
-            //     .stride = sizeof(ChunkVoxels::Vertex),
-            //     .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-            // },
-        };
+        VkVertexInputBindingDescription bindings[] = {};
 
-        VkVertexInputAttributeDescription attributes[] = {
-            // {
-            //     .location = 0,
-            //     .binding = 0,
-            //     .format = VK_FORMAT_R16G16B16_SINT,
-            //     .offset = 0,
-            // },
-            // {
-            //     .location = 1,
-            //     .binding = 0,
-            //     .format = VK_FORMAT_R8G8B8_SNORM,
-            //     .offset = offsetof(ChunkMesh::Vertex, nnx),
-            // },
-            // {
-            //     .location = 2,
-            //     .binding = 0,
-            //     .format = VK_FORMAT_R8G8B8_UNORM,
-            //     .offset = offsetof(ChunkMesh::Vertex, br),
-            // },
-        };
+        VkVertexInputAttributeDescription attributes[] = {};
 
         VkPipelineVertexInputStateCreateInfo vertex_input {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-            .vertexBindingDescriptionCount = sizeof(bindings) / sizeof(bindings[0]),
-            .pVertexBindingDescriptions = &bindings[0],
-            .vertexAttributeDescriptionCount = sizeof(attributes) / sizeof(attributes[0]),
-            .pVertexAttributeDescriptions = &attributes[0],
+            .vertexBindingDescriptionCount = 0,
+            .pVertexBindingDescriptions = VK_NULL_HANDLE,
+            .vertexAttributeDescriptionCount = 0,
+            .pVertexAttributeDescriptions = VK_NULL_HANDLE,
         };
 
         VkPipelineRasterizationStateCreateInfo rasterization {

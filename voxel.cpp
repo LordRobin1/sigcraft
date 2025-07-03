@@ -6,7 +6,7 @@ extern "C" {
 #include "enklume/block_data.h"
 }
 
-void chunk_voxels(const ChunkData* chunk, ChunkNeighbors& neighbours, std::vector<uint8_t>& voxel_buffer, std::vector<uint8_t>& vert_buffer, size_t* num_voxels, size_t* num_verts) {
+void chunk_voxels(const ChunkData* chunk, ChunkNeighbors& neighbours, std::vector<uint8_t>& voxel_buffer, size_t* num_voxels) {
     for (int section = 0; section < CUNK_CHUNK_SECTIONS_COUNT; section++) {
         for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
             for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
@@ -39,10 +39,7 @@ void chunk_voxels(const ChunkData* chunk, ChunkNeighbors& neighbours, std::vecto
                         v.color.y = block_colors[block_data].g;
                         v.color.z = block_colors[block_data].b;
                         v.copy_to(voxel_buffer);
-                        std::vector<uint8_t> bb_verts = v.generate_bb_verts();
-                        vert_buffer.insert(vert_buffer.end(), bb_verts.begin(), bb_verts.end());
                         *num_voxels += 1;
-                        *num_verts += bb_verts.size() / sizeof(ChunkVoxels::Vertex);
                     }
                 }
             }
@@ -52,33 +49,13 @@ void chunk_voxels(const ChunkData* chunk, ChunkNeighbors& neighbours, std::vecto
 
 ChunkVoxels::ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors) {
     std::vector<uint8_t> voxel_buffer;
-    std::vector<uint8_t> vert_buffer;
-    num_voxels = 0, num_verts = 0;
-    chunk_voxels(neighbors.neighbours[1][1], neighbors, voxel_buffer, vert_buffer, &num_voxels, &num_verts);
+    num_voxels = 0;
+    chunk_voxels(neighbors.neighbours[1][1], neighbors, voxel_buffer, &num_voxels);
 
-    size_t voxel_buffer_size = voxel_buffer.size();// * sizeof(uint8_t);
-    size_t vert_buffer_size = vert_buffer.size();// * sizeof(uint8_t);
+    size_t voxel_buffer_size = voxel_buffer.size();
 
     if (voxel_buffer_size > 0) {
         voxel_buf = std::make_unique<imr::Buffer>(device, voxel_buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-        vert_buf = std::make_unique<imr::Buffer>(device, vert_buffer_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
         voxel_buf->uploadDataSync(0, voxel_buffer_size, voxel_buffer.data());
-        vert_buf->uploadDataSync(0, vert_buffer_size, vert_buffer.data());
     }
-}
-
-std::vector<uint8_t> Voxel::generate_bb_verts() const {
-    int16_t z = 1;
-    // bounding box vertices span the whole screen
-    std::array<std::tuple<int16_t, int16_t, int16_t>, 6> bb_verts{{
-        {-1, -1, z}, {1, -1, z}, {1, 1, z},
-        {-1, -1, z}, {1, 1, z}, {-1, 1, z},
-    }};
-
-    std::vector<uint8_t> buf;
-    for (auto [x, y, z] : bb_verts) {
-        ChunkVoxels::Vertex v = { x, y, z };
-        v.copy_to(buf);
-    }
-    return buf;
 }
