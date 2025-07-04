@@ -24,7 +24,7 @@ struct {
 
 Camera camera;
 CameraFreelookState camera_state = {
-    .fly_speed = 50.0f,
+    .fly_speed = 100.0f,
     .mouse_sensitivity = 1,
 };
 CameraInput camera_input;
@@ -103,12 +103,11 @@ struct Shaders {
 };
 
 int main(int argc, char** argv) {
+    if (argc < 2) return 0;
+
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
-
-    if (argc < 2)
-        return 0;
 
     glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
         if (key == GLFW_KEY_R && (mods & GLFW_MOD_CONTROL))
@@ -132,31 +131,6 @@ int main(int argc, char** argv) {
     auto shaders = std::make_unique<Shaders>(device, swapchain);
 
     auto& vk = device.dispatch;
-
-    // ========= Upload a some voxels to the GPU =========
-    constexpr size_t voxel_num = 3;
-    std::vector<uint8_t> data;
-    const Voxel v[voxel_num] = {
-        {
-            .position = { 0, 0, 0 },
-            .color = { 255, 0, 0 },
-        },
-        {
-            .position = { 2, 0, 0 },
-            .color = { 0, 255, 0 },
-        },
-        {
-            .position = { 0, 0, 2 },
-            .color = { 0, 0, 255 },
-        }
-    };
-    for (auto voxel : v) {
-        voxel.copy_to(data);
-    }
-    auto buffer = std::make_unique<imr::Buffer>(device, data.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-    buffer->uploadDataSync(0, data.size(), data.data());
-    push_constants.voxel_buffer = buffer->device_address();
-    // =====================================================
 
     while (!glfwWindowShouldClose(window)) {
         fps_counter.tick();
@@ -274,7 +248,7 @@ int main(int argc, char** argv) {
                             }
                         }
                         if (all_neighbours_loaded)
-                            loaded->voxels = std::make_unique<ChunkVoxels>(device, n);
+                            loaded->voxels = std::make_unique<ChunkVoxels>(device, n, ivec2{cx, cz});
                     }
                 };
 
@@ -288,38 +262,37 @@ int main(int argc, char** argv) {
                     }
                 }
 
-                // for (auto chunk : world.loaded_chunks()) {
-                //     if (abs(chunk->cx - player_chunk_x) > radius || abs(chunk->cz - player_chunk_z) > radius) {
-                //         std::unique_ptr<ChunkVoxels> stolen = std::move(chunk->voxels);
-                //         if (stolen) {
-                //             ChunkVoxels* released = stolen.release();
-                //             context.frame().addCleanupAction([=]() {
-                //                 delete released;
-                //             });
-                //         }
-                //         world.unload_chunk(chunk);
-                //         continue;
-                //     }
-                //
-                //     auto& voxels = chunk->voxels;
-                //     if (!voxels || voxels->num_voxels == 0)
-                //         continue;
-                //
-                //     // push_constants.chunk_position = { chunk->cx, 0, chunk->cz };
-                //     push_constants.voxel_buffer = voxels->voxel_buffer_device_address();
-                //
-                //     vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants), &push_constants);
-                //
-                //     vkCmdBindVertexBuffers(cmdbuf, 0, 1, &voxels->vert_buf->handle, tmpPtr((VkDeviceSize) 0));
-                //
-                //     assert(voxels->voxel_buf->size > 0);
-                //     assert(voxels->num_verts / voxels->num_voxels == 6);
-                //     vkCmdDraw(cmdbuf, voxels->num_verts, 1, 0, 0);
-                // }
+                 for (const auto chunk : world.loaded_chunks()) {
+                     // unload
+                     if (abs(chunk->cx - player_chunk_x) > radius || abs(chunk->cz - player_chunk_z) > radius) {
+                         std::unique_ptr<ChunkVoxels> stolen = std::move(chunk->voxels);
+                         if (stolen) {
+                             ChunkVoxels* released = stolen.release();
+                             context.frame().addCleanupAction([=]() {
+                                 delete released;
+                             });
+                         }
+                         world.unload_chunk(chunk);
+                         continue;
+                     }
 
-                vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants), &push_constants);
-                // no vertex buffer
-                vkCmdDraw(cmdbuf,  voxel_num * 6 /* billboard verts */, 1, 0, 0);
+                     auto& voxels = chunk->voxels;
+                     if (!voxels || voxels->num_voxels == 0)
+                         continue;
+
+                     // push_constants.chunk_position = { chunk->cx, 0, chunk->cz };
+                     push_constants.voxel_buffer = voxels->voxel_buffer_device_address();
+
+
+                     assert(voxels->voxel_buf->size > 0);
+                     assert(voxels->num_verts / voxels->num_voxels == 6);
+
+                     push_constants.voxel_buffer = voxels->voxel_buffer_device_address();
+                     vkCmdPushConstants(
+                         cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT,
+                         0, sizeof(push_constants), &push_constants);
+                     vkCmdDraw(cmdbuf, 6, voxels->num_voxels, 0, 0);
+                 }
             });
 
             auto now = imr_get_time_nano();
