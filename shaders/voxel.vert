@@ -42,19 +42,21 @@ const vec2 fullscreenVerts[6] = vec2[](
 );
 
 void main() {
-    Voxel voxel = push_constants.voxel_buffer.voxels[gl_VertexIndex / 6];
-    ivec3 voxel_position = voxel.position;
-    vec2 ndc = fullscreenVerts[gl_VertexIndex % 6];
+    Voxel voxel = push_constants.voxel_buffer.voxels[gl_InstanceIndex];
+    vec2 corner = fullscreenVerts[gl_VertexIndex];
+
+    vec3 right = vec3(push_constants.inverse_proj_view_matrix[0].xyz);
+    vec3 up    = vec3(push_constants.inverse_proj_view_matrix[1].xyz);
+    float scale = 5.0; // this should be dynamic somehow based on distance to camera
+    vec3 worldPos = vec3(voxel.position)
+    + right * corner.x * scale
+    + up    * corner.y * scale;
 
     color = voxel.color;
-
     cameraPosition = push_constants.camera_position;
     inverseProjViewMatrix = push_constants.inverse_proj_view_matrix;
-    box = Box(voxel_position, vec3(1), vec3(1), mat3(1.0));
     screenSize = push_constants.screen_size;
+    box = Box(voxel.position, vec3(1), vec3(1), mat3(1.0));
 
-    // emulate billboard for debugging
-    //vec4 position = push_constants.proj_view_mat * vec4(vec3(voxel_position) + vec3(ndc, 0.0), 1.0);
-
-    gl_Position = vec4(ndc, 0.0, 1.0);
+    gl_Position = push_constants.proj_view_mat * vec4(worldPos, 1.0);
 }

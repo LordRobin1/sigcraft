@@ -6,7 +6,7 @@ extern "C" {
 #include "enklume/block_data.h"
 }
 
-void chunk_voxels(const ChunkData* chunk, ChunkNeighbors& neighbours, std::vector<uint8_t>& voxel_buffer, std::vector<uint8_t>& vert_buffer, size_t* num_voxels, size_t* num_verts) {
+void chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighbors& neighbours, std::vector<uint8_t>& voxel_buffer, std::vector<uint8_t>& vert_buffer, size_t* num_voxels, size_t* num_verts) {
     for (int section = 0; section < CUNK_CHUNK_SECTIONS_COUNT; section++) {
         for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
             for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
@@ -32,9 +32,9 @@ void chunk_voxels(const ChunkData* chunk, ChunkNeighbors& neighbours, std::vecto
                     if (block_data != BlockAir && !occluded) {
                         Voxel v;
                         // TODO adding section * CUNK_CHUNK_SIZE doesn't make any sense
-                        v.position.x = x + section * CUNK_CHUNK_SIZE;
+                        v.position.x = x + chunkPos.x * CUNK_CHUNK_SIZE;
                         v.position.y = world_y;
-                        v.position.z = z + section * CUNK_CHUNK_SIZE;
+                        v.position.z = z + chunkPos.y * CUNK_CHUNK_SIZE; // y is our z here
                         v.color.x = block_colors[block_data].r;
                         v.color.y = block_colors[block_data].g;
                         v.color.z = block_colors[block_data].b;
@@ -50,11 +50,11 @@ void chunk_voxels(const ChunkData* chunk, ChunkNeighbors& neighbours, std::vecto
     }
 }
 
-ChunkVoxels::ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors) {
+ChunkVoxels::ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors, const ivec2& chunkPos) {
     std::vector<uint8_t> voxel_buffer;
     std::vector<uint8_t> vert_buffer;
     num_voxels = 0, num_verts = 0;
-    chunk_voxels(neighbors.neighbours[1][1], neighbors, voxel_buffer, vert_buffer, &num_voxels, &num_verts);
+    chunk_voxels(neighbors.neighbours[1][1], chunkPos, neighbors, voxel_buffer, vert_buffer, &num_voxels, &num_verts);
 
     size_t voxel_buffer_size = voxel_buffer.size();// * sizeof(uint8_t);
     size_t vert_buffer_size = vert_buffer.size();// * sizeof(uint8_t);
