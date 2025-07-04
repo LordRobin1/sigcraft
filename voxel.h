@@ -21,8 +21,6 @@ struct Voxel {
         for (auto b : tmp)
             buf.push_back(b);
     }
-
-    std::vector<uint8_t> generate_bb_verts() const;
 };
 
 struct ChunkVoxels {
