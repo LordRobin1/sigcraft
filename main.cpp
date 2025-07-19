@@ -14,6 +14,8 @@
 
 using namespace nasl;
 
+constexpr size_t RENDER_DISTANCE = 24;
+
 struct {
     mat4 matrix;
     mat4 inverse_matrix;
@@ -226,9 +228,9 @@ int main(int argc, char** argv) {
             mat4 flip_y = identity_mat4;
             flip_y.rows[1][1] = -1;
             m = m * flip_y;
-            mat4 view_mat = camera_get_view_mat4(&camera, context.image().size().width, context.image().size().height);
+            mat4 view_mat = camera_get_view_mat4(&camera, context.image().size().width, context.image().size().height); // has perspective already
             m = m * view_mat;
-            //m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f));
+            m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f)); // center each voxel
 
             auto& pipeline = shaders->pipeline;
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline());
@@ -249,38 +251,21 @@ int main(int argc, char** argv) {
                 //    vkCmdDraw(cmdbuf, 12 * 3, 1, 0, 0);
                 //}
 
-
-                auto load_chunk = [&](int cx, int cz) {
-                    auto loaded = world.get_loaded_chunk(cx, cz);
+                auto load_chunk = [&](const int cx, const int cz) {
+                    Chunk* loaded = world.get_loaded_chunk(cx, cz);
                     if (!loaded)
                         world.load_chunk(cx, cz);
                     else {
-                        if (loaded->voxels)
-                            return;
+                        if (loaded->voxels) return;
 
-                        bool all_neighbours_loaded = true;
-                        ChunkNeighbors n = {};
-                        for (int dx = -1; dx < 2; dx++) {
-                            for (int dz = -1; dz < 2; dz++) {
-                                int nx = cx + dx;
-                                int nz = cz + dz;
-
-                                auto neighborChunk = world.get_loaded_chunk(nx, nz);
-                                if (neighborChunk)
-                                    n.neighbours[dx + 1][dz + 1] = &neighborChunk->data;
-                                else
-                                    all_neighbours_loaded = false;
-                            }
-                        }
-                        if (all_neighbours_loaded)
-                            loaded->voxels = std::make_unique<ChunkVoxels>(device, n, ivec2{cx, cz});
+                        loaded->voxels = std::make_unique<ChunkVoxels>(device, &loaded->data, ivec2{cx, cz});
                     }
                 };
 
-                int player_chunk_x = camera.position.x / 16;
-                int player_chunk_z = camera.position.z / 16;
+                const int player_chunk_x = camera.position.x / 16;
+                const int player_chunk_z = camera.position.z / 16;
 
-                int radius = 24;
+                int radius = RENDER_DISTANCE;
                 for (int dx = -radius; dx <= radius; dx++) {
                     for (int dz = -radius; dz <= radius; dz++) {
                         load_chunk(player_chunk_x + dx, player_chunk_z + dz);
@@ -306,8 +291,6 @@ int main(int argc, char** argv) {
                          continue;
 
                      // push_constants.chunk_position = { chunk->cx, 0, chunk->cz };
-                     push_constants.voxel_buffer = voxels->voxel_buffer_device_address();
-
 
                      assert(voxels->voxel_buf->size > 0);
                      assert(voxels->num_verts / voxels->num_voxels == 6);

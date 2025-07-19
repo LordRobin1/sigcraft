@@ -31,7 +31,8 @@ struct ChunkVoxels {
     size_t num_voxels;
     size_t num_verts;
 
-    ChunkVoxels(imr::Device&, ChunkNeighbors& neighbors, const ivec2& chunkPos);
+    // I don't think we need neighbors since that's for mesh gen
+    ChunkVoxels(imr::Device& device, ChunkData* data, const ivec2& chunkPos);
 
     [[nodiscard]] VkDeviceAddress voxel_buffer_device_address() const {
         return voxel_buf->device_address();
