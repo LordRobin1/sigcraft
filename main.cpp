@@ -56,41 +56,16 @@ struct Shaders {
         };
         rts.depth = depth;
 
-        VkVertexInputBindingDescription bindings[] = {
-            // {
-            //     .binding = 0,
-            //     .stride = sizeof(ChunkVoxels::Vertex),
-            //     .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-            // },
-        };
+        VkVertexInputBindingDescription bindings[] = {};
 
-        VkVertexInputAttributeDescription attributes[] = {
-            // {
-            //     .location = 0,
-            //     .binding = 0,
-            //     .format = VK_FORMAT_R16G16B16_SINT,
-            //     .offset = 0,
-            // },
-            // {
-            //     .location = 1,
-            //     .binding = 0,
-            //     .format = VK_FORMAT_R8G8B8_SNORM,
-            //     .offset = offsetof(ChunkMesh::Vertex, nnx),
-            // },
-            // {
-            //     .location = 2,
-            //     .binding = 0,
-            //     .format = VK_FORMAT_R8G8B8_UNORM,
-            //     .offset = offsetof(ChunkMesh::Vertex, br),
-            // },
-        };
+        VkVertexInputAttributeDescription attributes[] = {};
 
         VkPipelineVertexInputStateCreateInfo vertex_input {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
             .vertexBindingDescriptionCount = 0,
-            .pVertexBindingDescriptions = nullptr,
+            .pVertexBindingDescriptions = VK_NULL_HANDLE,
             .vertexAttributeDescriptionCount = 0,
-            .pVertexAttributeDescriptions = nullptr,
+            .pVertexAttributeDescriptions = VK_NULL_HANDLE,
         };
 
         VkPipelineRasterizationStateCreateInfo rasterization {
@@ -293,7 +268,6 @@ int main(int argc, char** argv) {
                      // push_constants.chunk_position = { chunk->cx, 0, chunk->cz };
 
                      assert(voxels->voxel_buf->size > 0);
-                     assert(voxels->num_verts / voxels->num_voxels == 6);
 
                      push_constants.voxel_buffer = voxels->voxel_buffer_device_address();
                      vkCmdPushConstants(
