@@ -230,7 +230,7 @@ int main(int argc, char** argv) {
             m = m * flip_y;
             mat4 view_mat = camera_get_view_mat4(&camera, context.image().size().width, context.image().size().height); // has perspective already
             m = m * view_mat;
-            m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f)); // center each voxel
+            // m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f)); // center each voxel
 
             auto& pipeline = shaders->pipeline;
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline());
