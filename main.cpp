@@ -14,6 +14,8 @@
 
 using namespace nasl;
 
+constexpr size_t RENDER_DISTANCE = 24;
+
 struct {
     mat4 matrix;
     mat4 inverse_matrix;
@@ -103,12 +105,11 @@ struct Shaders {
 };
 
 int main(int argc, char** argv) {
+    if (argc < 2) return 0;
+
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
-
-    if (argc < 2)
-        return 0;
 
     glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
         if (key == GLFW_KEY_R && (mods & GLFW_MOD_CONTROL))
@@ -227,7 +228,7 @@ int main(int argc, char** argv) {
             mat4 flip_y = identity_mat4;
             flip_y.rows[1][1] = -1;
             m = m * flip_y;
-            mat4 view_mat = camera_get_view_mat4(&camera, context.image().size().width, context.image().size().height);
+            mat4 view_mat = camera_get_view_mat4(&camera, context.image().size().width, context.image().size().height); // has perspective already
             m = m * view_mat;
             //m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f));
 
@@ -281,7 +282,7 @@ int main(int argc, char** argv) {
                 int player_chunk_x = camera.position.x / 16;
                 int player_chunk_z = camera.position.z / 16;
 
-                int radius = 24;
+                int radius = RENDER_DISTANCE;
                 for (int dx = -radius; dx <= radius; dx++) {
                     for (int dz = -radius; dz <= radius; dz++) {
                         load_chunk(player_chunk_x + dx, player_chunk_z + dz);
