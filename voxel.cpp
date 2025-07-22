@@ -6,13 +6,13 @@ extern "C" {
 #include "enklume/block_data.h"
 }
 
-void chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, std::vector<uint8_t>& voxel_buffer,  size_t* num_voxels) {
+void chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighbors& neighbours, std::vector<uint8_t>& voxel_buffer,  size_t* num_voxels) {
     for (int section = 0; section < CUNK_CHUNK_SECTIONS_COUNT; section++) {
         for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
             for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
                 for (int z = 0; z < CUNK_CHUNK_SIZE; z++) {
                     int world_y = y + section * CUNK_CHUNK_SIZE;
-                    const BlockData block_data = access_safe(chunk, x, world_y, z);
+                    const BlockData block_data = access_safe(chunk, neighbours, x, world_y, z);
                     struct n_idx {
                         int x, y, z;
                     };
@@ -25,9 +25,13 @@ void chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, std::vector<uin
                         {x, world_y, z - 1}
                     }};
 
-                    const bool occluded = std::ranges::any_of(n_idxs.begin(), n_idxs.end(), [&](const auto& n) {
-                        return access_safe(chunk, n.x, n.y, n.z) != BlockAir;
-                    });
+                    bool occluded = true;
+                    for (const auto &[x, y, z] : n_idxs) {
+                        if (access_safe(chunk, neighbours, x, y, z) == BlockAir) {
+                            occluded = false;
+                            break;
+                        }
+                    }
 
                     if (block_data != BlockAir && !occluded) {
                         Voxel v;
@@ -47,10 +51,10 @@ void chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, std::vector<uin
     }
 }
 
-ChunkVoxels::ChunkVoxels(imr::Device& device, ChunkData* data, const ivec2& chunkPos) {
+ChunkVoxels::ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors, const ivec2& chunkPos) {
     std::vector<uint8_t> voxel_buffer;
     num_voxels = 0;
-    chunk_voxels(data, chunkPos, voxel_buffer, &num_voxels);
+    chunk_voxels(neighbors.neighbours[1][1], chunkPos, neighbors, voxel_buffer, &num_voxels);
 
     size_t voxel_buffer_size = voxel_buffer.size();
 

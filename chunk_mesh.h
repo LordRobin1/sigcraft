@@ -13,7 +13,7 @@ struct ChunkNeighbors {
     const ChunkData* neighbours[3][3];
 };
 
-BlockData access_safe(const ChunkData* chunk, int x, int y, int z);
+BlockData access_safe(const ChunkData* chunk, ChunkNeighbors& neighbours, int x, int y, int z);
 
 struct ChunkMesh {
     std::unique_ptr<imr::Buffer> buf;

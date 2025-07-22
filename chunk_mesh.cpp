@@ -144,7 +144,7 @@ static void paste_plus_z_face(std::vector<uint8_t>& g, nasl::vec3 color, unsigne
 
 #undef V
 
-BlockData access_safe(const ChunkData* chunk, const int x, const int y, const int z) {
+BlockData access_safe(const ChunkData* chunk, ChunkNeighbors& neighbours, int x, int y, int z) {
     unsigned int i, k;
     if (x < 0) {
         i = 0;
@@ -167,6 +167,9 @@ BlockData access_safe(const ChunkData* chunk, const int x, const int y, const in
     //assert(!neighbours || neighbours[1][1][1] == chunk);
     if (i == 1 && k == 1) {
         return chunk_get_block_data(chunk, x, y, z);
+    } else {
+        if (neighbours.neighbours[i][k])
+            return chunk_get_block_data(neighbours.neighbours[i][k], x & 15, y, z & 15);
     }
 
     return BlockAir;

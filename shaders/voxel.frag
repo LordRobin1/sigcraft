@@ -28,7 +28,7 @@ bool ourHitAABox(vec3 boxCenter, vec3 boxRadius, vec3 rayOrigin, vec3 rayDirecti
     rayOrigin -= boxCenter;
     vec3 distanceToPlane = (-boxRadius * sign(rayDirection) - rayOrigin) * invRayDirection;
 
-#   define TEST(U, V,W)\
+    #define TEST(U, V,W)\
          (float(distanceToPlane.U >= 0.0) * \
           float(abs(rayOrigin.V + rayDirection.V * distanceToPlane.U) < boxRadius.V) * \
           float(abs(rayOrigin.W + rayDirection.W * distanceToPlane.U) < boxRadius.W))
@@ -40,7 +40,7 @@ bool ourHitAABox(vec3 boxCenter, vec3 boxRadius, vec3 rayOrigin, vec3 rayDirecti
         TEST(x, y, z) +
         TEST(y, z, x) +
         TEST(z, x, y));
-#   undef TEST
+    #undef TEST
 }
 
 // vec3 box.radius:       independent half-length along the X, Y, and Z axes

@@ -14,7 +14,7 @@
 
 using namespace nasl;
 
-constexpr size_t RENDER_DISTANCE = 24;
+constexpr size_t RENDER_DISTANCE = 6;
 
 struct {
     mat4 matrix;
@@ -26,8 +26,8 @@ struct {
 
 Camera camera;
 CameraFreelookState camera_state = {
-    .fly_speed = 100.0f,
-    .mouse_sensitivity = 1,
+    .fly_speed = 50.0f,
+    .mouse_sensitivity = 0.75f,
 };
 CameraInput camera_input;
 
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
     auto prev_frame = imr_get_time_nano();
     float delta = 0;
 
-    camera = {{0, 0, 3}, {0, 0}, 60};
+    camera = {{0, 0, 3}, {0, 0}, 90};
 
     std::unique_ptr<imr::Image> depthBuffer;
 
@@ -205,7 +205,7 @@ int main(int argc, char** argv) {
             m = m * flip_y;
             mat4 view_mat = camera_get_view_mat4(&camera, context.image().size().width, context.image().size().height); // has perspective already
             m = m * view_mat;
-            // m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f)); // center each voxel
+            // m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f));
 
             auto& pipeline = shaders->pipeline;
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline());
@@ -233,7 +233,22 @@ int main(int argc, char** argv) {
                     else {
                         if (loaded->voxels) return;
 
-                        loaded->voxels = std::make_unique<ChunkVoxels>(device, &loaded->data, ivec2{cx, cz});
+                        bool all_neighbours_loaded = true;
+                        ChunkNeighbors n = {};
+                        for (int dx = -1; dx < 2; dx++) {
+                            for (int dz = -1; dz < 2; dz++) {
+                                int nx = cx + dx;
+                                int nz = cz + dz;
+
+                                auto neighborChunk = world.get_loaded_chunk(nx, nz);
+                                if (neighborChunk)
+                                    n.neighbours[dx + 1][dz + 1] = &neighborChunk->data;
+                                else
+                                    all_neighbours_loaded = false;
+                            }
+                        }
+                        if (all_neighbours_loaded)
+                            loaded->voxels = std::make_unique<ChunkVoxels>(device, n, ivec2{cx, cz});
                     }
                 };
 
@@ -268,6 +283,7 @@ int main(int argc, char** argv) {
                      // push_constants.chunk_position = { chunk->cx, 0, chunk->cz };
 
                      assert(voxels->voxel_buf->size > 0);
+                     assert(voxels->voxel_buf->size == voxels->num_voxels * sizeof(Voxel));
 
                      push_constants.voxel_buffer = voxels->voxel_buffer_device_address();
                      vkCmdPushConstants(
