@@ -82,7 +82,7 @@ void main() {
     cameraPosition = push_constants.camera_position;
     inverseProjViewMatrix = push_constants.inverse_proj_view_matrix;
     screenSize = push_constants.screen_size;
-    box = Box(voxel.position, vec3(1), vec3(1), mat3(1.0));
+    box = Box(voxel.position, vec3(0.5), vec3(1), mat3(1.0));
 
     gl_Position = position;
 }
