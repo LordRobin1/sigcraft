@@ -14,7 +14,7 @@
 
 using namespace nasl;
 
-constexpr size_t RENDER_DISTANCE = 6;
+constexpr size_t RENDER_DISTANCE = 24;
 
 struct {
     mat4 matrix;
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
     auto prev_frame = imr_get_time_nano();
     float delta = 0;
 
-    camera = {{0, 0, 3}, {0, 0}, 90};
+    camera = {{0, 300, 3}, {0, 90}, 90};
 
     std::unique_ptr<imr::Image> depthBuffer;
 

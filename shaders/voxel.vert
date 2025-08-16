@@ -84,5 +84,10 @@ void main() {
     screenSize = push_constants.screen_size;
     box = Box(voxel.position, vec3(0.5), vec3(1), mat3(1.0));
 
+    float stochasticCoverage = pointSize * pointSize;
+    if (stochasticCoverage < 0.8 && (gl_InstanceIndex & 0xffff) > stochasticCoverage * (0xffff / 0.8)) {
+        position = vec4(-1, -1, -1, -1);
+    }
+
     gl_Position = position;
 }
