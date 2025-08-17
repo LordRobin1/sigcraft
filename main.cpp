@@ -35,9 +35,8 @@ void camera_update(GLFWwindow*, CameraInput* input);
 
 bool reload_shaders = false;
 
+std::vector<std::string> shaderFiles = { "voxel.vert.spv", "voxel.frag.spv" };
 struct Shaders {
-    std::vector<std::string> files = { "voxel.vert.spv", "voxel.frag.spv" };
-
     std::vector<std::unique_ptr<imr::ShaderModule>> modules;
     std::vector<std::unique_ptr<imr::ShaderEntryPoint>> entry_points;
     std::unique_ptr<imr::GraphicsPipeline> pipeline;
@@ -88,7 +87,7 @@ struct Shaders {
         };
 
         std::vector<imr::ShaderEntryPoint*> entry_point_ptrs;
-        for (auto filename : files) {
+        for (auto filename : shaderFiles) {
             VkShaderStageFlagBits stage;
             if (filename.ends_with("vert.spv"))
                 stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -116,6 +115,17 @@ int main(int argc, char** argv) {
             reload_shaders = true;
     });
 
+    glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
+        if (key == GLFW_KEY_F1 && action == GLFW_PRESS) {
+            if (shaderFiles[1].starts_with("voxel")) {
+                shaderFiles[1] = "visualize_billboards.frag.spv";
+            } else {
+                shaderFiles[1] = "voxel.frag.spv";
+            }
+            reload_shaders = true;
+        }
+    });
+
     imr::Context context;
     imr::Device device(context);
     imr::Swapchain swapchain(device, window);
@@ -126,7 +136,7 @@ int main(int argc, char** argv) {
     auto prev_frame = imr_get_time_nano();
     float delta = 0;
 
-    camera = {{0, 300, 3}, {0, 90}, 90};
+    camera = {{30, 141, -12}, {0, 0}, 90};
 
     std::unique_ptr<imr::Image> depthBuffer;
 
