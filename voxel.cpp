@@ -6,7 +6,15 @@ extern "C" {
 #include "enklume/block_data.h"
 }
 
-void chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighbors& neighbours, std::vector<uint8_t>& voxel_buffer,  size_t* num_voxels) {
+void chunk_voxels(
+    const ChunkData* chunk,
+    const ivec2& chunkPos,
+    ChunkNeighbors& neighbours,
+    std::vector<uint8_t>& voxel_buffer,
+    size_t* num_voxels,
+    int* min_height,
+    int* max_height
+    ) {
     for (int section = 0; section < CUNK_CHUNK_SECTIONS_COUNT; section++) {
         for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
             for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
@@ -44,6 +52,8 @@ void chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighbors&
                         v.color.z = block_colors[block_data].b;
                         v.copy_to(voxel_buffer);
                         *num_voxels += 1;
+                        *min_height = std::min(*min_height, world_y);
+                        *max_height = std::max(*max_height, world_y);
                     }
                 }
             }
@@ -53,8 +63,7 @@ void chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighbors&
 
 ChunkVoxels::ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors, const ivec2& chunkPos) {
     std::vector<uint8_t> voxel_buffer;
-    num_voxels = 0;
-    chunk_voxels(neighbors.neighbours[1][1], chunkPos, neighbors, voxel_buffer, &num_voxels);
+    chunk_voxels(neighbors.neighbours[1][1], chunkPos, neighbors, voxel_buffer, &num_voxels, &min_height, &max_height);
 
     size_t voxel_buffer_size = voxel_buffer.size();
 
