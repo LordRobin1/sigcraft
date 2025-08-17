@@ -242,85 +242,9 @@ int main(int argc, char** argv) {
             // push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
 
             context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]() {
-                //for (auto pos : positions) {
-                //    mat4 cube_matrix = m;
-                //    cube_matrix = cube_matrix * translate_mat4(pos);
-
-                //    push_constants_batched.matrix = cube_matrix;
-                //    vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants_batched), &push_constants_batched);
-                //    vkCmdDraw(cmdbuf, 12 * 3, 1, 0, 0);
-                //}
-
-
-                auto load_chunk = [&](int cx, int cz) {
-                    auto loaded = world.get_loaded_chunk(cx, cz);
-                    if (!loaded)
-                        world.load_chunk(cx, cz);
-                    else {
-                        if (loaded->voxels)
-                            return;
-
-                        bool all_neighbours_loaded = true;
-                        ChunkNeighbors n = {};
-                        for (int dx = -1; dx < 2; dx++) {
-                            for (int dz = -1; dz < 2; dz++) {
-                                int nx = cx + dx;
-                                int nz = cz + dz;
-
-                                auto neighborChunk = world.get_loaded_chunk(nx, nz);
-                                if (neighborChunk)
-                                    n.neighbours[dx + 1][dz + 1] = &neighborChunk->data;
-                                else
-                                    all_neighbours_loaded = false;
-                            }
-                        }
-                        if (all_neighbours_loaded)
-                            loaded->voxels = std::make_unique<ChunkVoxels>(device, n);
-                    }
-                };
-
-                int player_chunk_x = camera.position.x / 16;
-                int player_chunk_z = camera.position.z / 16;
-
-                int radius = RENDER_DISTANCE;
-                for (int dx = -radius; dx <= radius; dx++) {
-                    for (int dz = -radius; dz <= radius; dz++) {
-                        load_chunk(player_chunk_x + dx, player_chunk_z + dz);
-                    }
-                }
-
-                // for (auto chunk : world.loaded_chunks()) {
-                //     if (abs(chunk->cx - player_chunk_x) > radius || abs(chunk->cz - player_chunk_z) > radius) {
-                //         std::unique_ptr<ChunkVoxels> stolen = std::move(chunk->voxels);
-                //         if (stolen) {
-                //             ChunkVoxels* released = stolen.release();
-                //             context.frame().addCleanupAction([=]() {
-                //                 delete released;
-                //             });
-                //         }
-                //         world.unload_chunk(chunk);
-                //         continue;
-                //     }
-                //
-                //     auto& voxels = chunk->voxels;
-                //     if (!voxels || voxels->num_voxels == 0)
-                //         continue;
-                //
-                //     // push_constants.chunk_position = { chunk->cx, 0, chunk->cz };
-                //     push_constants.voxel_buffer = voxels->voxel_buffer_device_address();
-                //
-                //     vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants), &push_constants);
-                //
-                //     vkCmdBindVertexBuffers(cmdbuf, 0, 1, &voxels->vert_buf->handle, tmpPtr((VkDeviceSize) 0));
-                //
-                //     assert(voxels->voxel_buf->size > 0);
-                //     assert(voxels->num_verts / voxels->num_voxels == 6);
-                //     vkCmdDraw(cmdbuf, voxels->num_verts, 1, 0, 0);
-                // }
-
                 vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants), &push_constants);
                 // no vertex buffer
-                vkCmdDraw(cmdbuf,  voxel_num * 6 /* billboard verts */, 1, 0, 0);
+                vkCmdDraw(cmdbuf,  6 /* billboard verts */, voxel_num, 0, 0);
             });
 
             auto now = imr_get_time_nano();
