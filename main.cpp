@@ -26,7 +26,7 @@ struct {
 
 Camera camera;
 CameraFreelookState camera_state = {
-    .fly_speed = 50.0f,
+    .fly_speed = 10.0f,
     .mouse_sensitivity = 0.75f,
 };
 CameraInput camera_input;
@@ -153,11 +153,11 @@ int main(int argc, char** argv) {
             .color = { 255, 0, 0 },
         },
         {
-            .position = { 2, 0, 0 },
+            .position = { 1, 0, 0 },
             .color = { 0, 255, 0 },
         },
         {
-            .position = { 0, 0, 2 },
+            .position = { 0, 0, 1 },
             .color = { 0, 0, 255 },
         }
     };
