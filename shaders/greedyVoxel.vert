@@ -22,13 +22,6 @@ layout(scalar, push_constant) uniform T {
     vec2 screen_size;
 } push_constants;
 
-// gl_InstanceIndex => AABB-corner
-// 0 => bottom-left
-// 1 => bottom-right
-// 2 => top-right
-// 3 => bottom-left
-// 4 => top-right
-// 5 => top-left
 layout(location = 0) out Box box;
 layout(location = 6) out vec3 color;
 layout(location = 7) out vec3 cameraPosition;
@@ -36,6 +29,13 @@ layout(location = 8) out vec2 screenSize;
 layout(location = 9) out mat4 inverseProjViewMatrix;
 layout(location = 13) out vec2 quad;
 
+// gl_InstanceIndex => AABB-corner
+// 0 => bottom-left
+// 1 => bottom-right
+// 2 => top-right
+// 3 => bottom-left
+// 4 => top-right
+// 5 => top-left
 const vec2 fullscreenVerts[6] = vec2[](
     vec2(-1.0, -1.0),
     vec2( 1.0, -1.0),
