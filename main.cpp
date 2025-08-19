@@ -34,8 +34,10 @@ CameraInput camera_input;
 void camera_update(GLFWwindow*, CameraInput* input);
 
 bool reload_shaders = false;
+bool toggleGreedy = false;
 
-std::vector<std::string> shaderFiles = { "voxel.vert.spv", "voxel.frag.spv" };
+std::vector<std::string> shaderFiles = { "greedyVoxel.vert.spv", "voxel.frag.spv" };
+bool greedyMeshing = shaderFiles[0].starts_with("greedy");
 struct Shaders {
     std::vector<std::unique_ptr<imr::ShaderModule>> modules;
     std::vector<std::unique_ptr<imr::ShaderEntryPoint>> entry_points;
@@ -103,6 +105,9 @@ struct Shaders {
     }
 };
 
+int debugShader = 0;
+std::vector<std::string> debugShaderFiles = {"voxel.frag.spv", "visualize_billboards.frag.spv", "outline_billboards.frag.spv"};
+
 int main(int argc, char** argv) {
     if (argc < 2) return 0;
 
@@ -110,19 +115,24 @@ int main(int argc, char** argv) {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
 
-    glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
-        if (key == GLFW_KEY_R && (mods & GLFW_MOD_CONTROL))
-            reload_shaders = true;
-    });
+    auto world = World(argv[1]);
+    glfwSetWindowUserPointer(window, &world);
 
     glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
-        if (key == GLFW_KEY_F1 && action == GLFW_PRESS) {
-            if (shaderFiles[1].starts_with("voxel")) {
-                shaderFiles[1] = "visualize_billboards.frag.spv";
-            } else {
-                shaderFiles[1] = "voxel.frag.spv";
-            }
+        auto* world_ = static_cast<World*>(glfwGetWindowUserPointer(window));
+        if (!world_) return;
+
+        if (key == GLFW_KEY_R && (mods & GLFW_MOD_CONTROL)) reload_shaders = true;
+        else if (key == GLFW_KEY_F1 && action == GLFW_PRESS) {
+            debugShader = (debugShader + debugShaderFiles.size() - 1) % debugShaderFiles.size();
             reload_shaders = true;
+        } else if (key == GLFW_KEY_F2 && action == GLFW_PRESS) {
+            debugShader = (debugShader + 1) % debugShaderFiles.size();
+            reload_shaders = true;
+        } else if (key == GLFW_KEY_F12 && action == GLFW_PRESS) {
+            greedyMeshing = !greedyMeshing;
+            reload_shaders = true;
+            toggleGreedy = true;
         }
     });
 
@@ -130,8 +140,6 @@ int main(int argc, char** argv) {
     imr::Device device(context);
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
-
-    auto world = World(argv[1]);
 
     auto prev_frame = imr_get_time_nano();
     float delta = 0;
@@ -154,8 +162,28 @@ int main(int argc, char** argv) {
 
             if (reload_shaders) {
                 swapchain.drain();
+                shaderFiles[0] = greedyMeshing ? "greedyVoxel.vert.spv" : "voxel.vert.spv";
+                shaderFiles[1] = debugShaderFiles[debugShader];
                 shaders = std::make_unique<Shaders>(device, swapchain);
                 reload_shaders = false;
+                std::cout << "Vertex shader: " << shaderFiles[0] << std::endl;
+                std::cout << "Pixel shader: " << shaderFiles[1] << std::endl;
+            }
+            if (toggleGreedy) {
+                swapchain.drain();
+
+                for (auto chunk : world.loaded_chunks()) {
+                    std::unique_ptr<ChunkVoxels> stolen = std::move(chunk->voxels);
+                    if (stolen) {
+                        ChunkVoxels* released = stolen.release();
+                        context.frame().addCleanupAction([=]() {
+                            delete released;
+                        });
+                    }
+                    world.unload_chunk(chunk);
+                }
+
+                toggleGreedy = false;
             }
 
             auto& image = context.image();
@@ -227,14 +255,7 @@ int main(int argc, char** argv) {
             // push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
 
             context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]() {
-                //for (auto pos : positions) {
-                //    mat4 cube_matrix = m;
-                //    cube_matrix = cube_matrix * translate_mat4(pos);
 
-                //    push_constants_batched.matrix = cube_matrix;
-                //    vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants_batched), &push_constants_batched);
-                //    vkCmdDraw(cmdbuf, 12 * 3, 1, 0, 0);
-                //}
 
                 auto load_chunk = [&](const int cx, const int cz) {
                     Chunk* loaded = world.get_loaded_chunk(cx, cz);
@@ -258,7 +279,7 @@ int main(int argc, char** argv) {
                             }
                         }
                         if (all_neighbours_loaded)
-                            loaded->voxels = std::make_unique<ChunkVoxels>(device, n, ivec2{cx, cz});
+                            loaded->voxels = std::make_unique<ChunkVoxels>(device, n, ivec2{cx, cz}, greedyMeshing);
                     }
                 };
 
@@ -290,12 +311,10 @@ int main(int argc, char** argv) {
                      if (!voxels || voxels->num_voxels == 0)
                          continue;
 
-                     // push_constants.chunk_position = { chunk->cx, 0, chunk->cz };
+                     // assert(voxels->voxel_buf->size > 0);
+                     // assert(voxels->voxel_buf->size == voxels->num_voxels * sizeof(Voxel));
 
-                     assert(voxels->voxel_buf->size > 0);
-                     assert(voxels->voxel_buf->size == voxels->num_voxels * sizeof(Voxel));
-
-                     push_constants.voxel_buffer = voxels->voxel_buffer_device_address();
+                     push_constants.voxel_buffer = voxels->voxel_buffer_device_address(greedyMeshing);
                      vkCmdPushConstants(
                          cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT,
                          0, sizeof(push_constants), &push_constants);
