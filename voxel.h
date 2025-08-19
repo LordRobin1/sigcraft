@@ -23,9 +23,25 @@ struct Voxel {
     }
 };
 
+struct GreedyVoxel {
+    ivec3 start;
+    ivec3 end;
+    vec3 color;
+
+    void copy_to(std::vector<uint8_t>& buf) const {
+        uint8_t tmp[sizeof(GreedyVoxel)];
+        memcpy(tmp, this, sizeof(GreedyVoxel));
+        for (auto b : tmp)
+            buf.push_back(b);
+    }
+};
+
+
 struct ChunkVoxels {
     std::unique_ptr<imr::Buffer> voxel_buf;
     size_t num_voxels;
+
+    std::unique_ptr<imr::Buffer> greedy_voxel_buf; // for greedy meshing
 
     // I don't think we need neighbors since that's for mesh gen
     ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors, const ivec2& chunkPos);
