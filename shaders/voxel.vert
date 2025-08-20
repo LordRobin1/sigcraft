@@ -11,10 +11,6 @@ struct Box {
 
 struct Voxel { ivec3 position; vec3 color; };
 
-//layout(location = 0) in ivec3 vertexIn;
-//layout(location = 1) in vec3 normalIn;
-//layout(location = 2) in vec3 colorIn;
-
 layout(scalar, buffer_reference) readonly buffer VoxelBuffer {
     Voxel voxels[];
 };
