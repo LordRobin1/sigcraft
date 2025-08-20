@@ -9,10 +9,10 @@ struct Box {
     mat3 rotation;
 };
 
-struct Voxel { ivec3 position; vec3 color; };
+struct GreedyVoxel { ivec3 start; ivec3 end; vec3 color; };
 
 layout(scalar, buffer_reference) readonly buffer VoxelBuffer {
-    Voxel voxels[];
+    GreedyVoxel voxels[];
 };
 layout(scalar, push_constant) uniform T {
     mat4 proj_view_mat;
@@ -45,10 +45,8 @@ const vec2 fullscreenVerts[6] = vec2[](
     vec2(-1.0,  1.0)
 );
 
-void quadricProj(in vec3 osPosition, in mat4 objectToScreenMatrix, in vec2 halfScreenSize, inout vec4 position, inout float pointSize) {
+void quadricProj(in vec3 osPosition, in float sphereRadius, in mat4 objectToScreenMatrix, in vec2 halfScreenSize, inout vec4 position, inout float pointSize) {
     const vec4 quadricMat = vec4(1.0, 1.0, 1.0, -1.0); // x^2 + y^2 + z^2 - r^2 = 0
-    // float sphereRadius = voxelSize * 1.732051; // uncomment if size becomes variable
-    float sphereRadius = 0.86602540378; // 1.732051;
     vec4 sphereCenter = vec4(osPosition.xyz, 1.0);
     mat4 modelViewProj = transpose(objectToScreenMatrix);
 
@@ -115,8 +113,8 @@ void computeClippedAABB(
     vec3 wsCenter,
     vec3 radius,
     mat4 projView,
-    out vec2 ndcMin,
-    out vec2 ndcMax
+out vec2 ndcMin,
+out vec2 ndcMax
 ) {
     // Corner points in clip space
     vec4 C[8];
@@ -134,13 +132,13 @@ void computeClippedAABB(
     }
     // 12 edges by corner indices
     const ivec2 BOX_EDGES[12] = ivec2[12](
-        ivec2(0,1), ivec2(0,2), ivec2(0,4),
-        ivec2(1,3), ivec2(1,5),
-        ivec2(2,3), ivec2(2,6),
-        ivec2(3,7),
-        ivec2(4,5), ivec2(4,6),
-        ivec2(5,7),
-        ivec2(6,7)
+    ivec2(0,1), ivec2(0,2), ivec2(0,4),
+    ivec2(1,3), ivec2(1,5),
+    ivec2(2,3), ivec2(2,6),
+    ivec2(3,7),
+    ivec2(4,5), ivec2(4,6),
+    ivec2(5,7),
+    ivec2(6,7)
     );
 
     // upper bound on candidates: 8 corners + (12 edges * 5 planes) => at most 68;
@@ -197,24 +195,31 @@ void computeClippedAABB(
 
 
 void main() {
-    const float radius = 0.5;
-    const float invRadius = 2;
     const float CLIPPING_THRESHOLD = 200.0;
 
-    Voxel voxel = push_constants.voxel_buffer.voxels[gl_InstanceIndex];
+    GreedyVoxel voxel = push_constants.voxel_buffer.voxels[gl_InstanceIndex];
     vec2 corner = fullscreenVerts[gl_VertexIndex];
 
-    vec4 position = push_constants.proj_view_mat * vec4(voxel.position, 1.0);
+    vec3 center = (vec3(voxel.start) + vec3(voxel.end)) / 2;
+    vec4 position = push_constants.proj_view_mat * vec4(center, 1.0);
     float pointSize;
-    quadricProj(vec3(voxel.position), push_constants.proj_view_mat, push_constants.screen_size * 0.5, position, pointSize);
+    vec3 halfSize = abs((vec3(voxel.start) - vec3(voxel.end)) / 2);
+    float sphereRadius = length(halfSize);
+    quadricProj(center, sphereRadius, push_constants.proj_view_mat, push_constants.screen_size * 0.5, position, pointSize);
 
     vec2 screenOffset = corner * (pointSize / push_constants.screen_size);
     position.xy += screenOffset * position.w;
 
+    vec3 invHalf = vec3(
+        halfSize.x > 0.0 ? 1.0 / halfSize.x : 0.0,
+        halfSize.y > 0.0 ? 1.0 / halfSize.y : 0.0,
+        halfSize.z > 0.0 ? 1.0 / halfSize.z : 0.0
+    );
+
     // check if we need to compute the AABB greedily
     if (pointSize * 2.0 > CLIPPING_THRESHOLD) {
         vec2 ndcMin, ndcMax;
-        computeClippedAABB(vec3(voxel.position), vec3(radius), push_constants.proj_view_mat, ndcMin, ndcMax);
+        computeClippedAABB(center, halfSize, push_constants.proj_view_mat, ndcMin, ndcMax);
 
         // If completely clipped, return early
         // This should only be the case, if we do chunk-only/no frustum culling, so some voxels might not be visible
@@ -232,11 +237,11 @@ void main() {
         position.xy = ndcXY * position.w;
     }
 
+    box = Box(center, halfSize, invHalf, mat3(1.0));
     color = voxel.color;
     cameraPosition = push_constants.camera_position;
     inverseProjViewMatrix = push_constants.inverse_proj_view_matrix;
     screenSize = push_constants.screen_size;
-    box = Box(voxel.position, vec3(radius), vec3(invRadius), mat3(1.0));
     quad = (corner * 0.5) + 0.5;
 
     float stochasticCoverage = pointSize * pointSize;
