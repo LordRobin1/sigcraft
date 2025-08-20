@@ -46,7 +46,6 @@ struct GreedyVoxel {
 
 struct ChunkVoxels {
     std::unique_ptr<imr::Buffer> voxel_buf;
-    std::unique_ptr<imr::Buffer> greedy_voxel_buf; // for greedy meshing
     size_t num_voxels = 0;
     // https://www.badlion.net/minecraft-blog/what-minecraft-height-limit-2024
     int min_height = -64, max_height = 320;
@@ -61,7 +60,7 @@ struct ChunkVoxels {
     }
 
     [[nodiscard]] VkDeviceAddress voxel_buffer_device_address(const bool greedyMeshing) const {
-        return greedyMeshing ? greedy_voxel_buf->device_address() : voxel_buf->device_address();
+        return voxel_buf->device_address();
     }
 };
 

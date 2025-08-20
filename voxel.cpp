@@ -131,12 +131,7 @@ ChunkVoxels::ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors, const i
 
     size_t voxel_buffer_size = voxel_buffer.size();
     if (voxel_buffer_size > 0) {
-        if (greedyMeshing) {
-            greedy_voxel_buf = std::make_unique<imr::Buffer>(device, voxel_buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-            greedy_voxel_buf->uploadDataSync(0, voxel_buffer_size, voxel_buffer.data());
-        } else {
-            voxel_buf = std::make_unique<imr::Buffer>(device, voxel_buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-            voxel_buf->uploadDataSync(0, voxel_buffer_size, voxel_buffer.data());
-        }
+        voxel_buf = std::make_unique<imr::Buffer>(device, voxel_buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+        voxel_buf->uploadDataSync(0, voxel_buffer_size, voxel_buffer.data());
     }
 }
