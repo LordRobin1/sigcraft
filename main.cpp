@@ -36,7 +36,7 @@ void camera_update(GLFWwindow*, CameraInput* input);
 bool reload_shaders = false;
 bool toggleGreedy = false;
 
-std::vector<std::string> shaderFiles = { "greedyVoxel.vert.spv", "voxel.frag.spv" };
+std::vector<std::string> shaderFiles = { "voxel.vert.spv", "voxel.frag.spv" };
 bool greedyMeshing = shaderFiles[0].starts_with("greedy");
 struct Shaders {
     std::vector<std::unique_ptr<imr::ShaderModule>> modules;
@@ -115,6 +115,10 @@ int main(int argc, char** argv) {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
 
+    imr::Context context;
+    imr::Device device(context);
+    imr::Swapchain swapchain(device, window);
+    imr::FpsCounter fps_counter;
     auto world = World(argv[1]);
     glfwSetWindowUserPointer(window, &world);
 
@@ -136,11 +140,6 @@ int main(int argc, char** argv) {
         }
     });
 
-    imr::Context context;
-    imr::Device device(context);
-    imr::Swapchain swapchain(device, window);
-    imr::FpsCounter fps_counter;
-
     auto prev_frame = imr_get_time_nano();
     float delta = 0;
 
@@ -160,18 +159,8 @@ int main(int argc, char** argv) {
             camera_update(window, &camera_input);
             camera_move_freelook(&camera, &camera_input, &camera_state, delta);
 
-            if (reload_shaders) {
-                swapchain.drain();
-                shaderFiles[0] = greedyMeshing ? "greedyVoxel.vert.spv" : "voxel.vert.spv";
-                shaderFiles[1] = debugShaderFiles[debugShader];
-                shaders = std::make_unique<Shaders>(device, swapchain);
-                reload_shaders = false;
-                std::cout << "Vertex shader: " << shaderFiles[0] << std::endl;
-                std::cout << "Pixel shader: " << shaderFiles[1] << std::endl;
-            }
             if (toggleGreedy) {
                 swapchain.drain();
-
                 for (auto chunk : world.loaded_chunks()) {
                     std::unique_ptr<ChunkVoxels> stolen = std::move(chunk->voxels);
                     if (stolen) {
@@ -182,8 +171,15 @@ int main(int argc, char** argv) {
                     }
                     world.unload_chunk(chunk);
                 }
-
                 toggleGreedy = false;
+            }
+            if (reload_shaders) {
+                shaderFiles[0] = greedyMeshing ? "greedyVoxel.vert.spv" : "voxel.vert.spv";
+                shaderFiles[1] = debugShaderFiles[debugShader];
+                shaders = std::make_unique<Shaders>(device, swapchain);
+                reload_shaders = false;
+                std::cout << "Vertex shader: " << shaderFiles[0] << std::endl;
+                std::cout << "Pixel shader: " << shaderFiles[1] << std::endl;
             }
 
             auto& image = context.image();

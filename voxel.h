@@ -39,13 +39,12 @@ struct GreedyVoxel {
 
 struct ChunkVoxels {
     std::unique_ptr<imr::Buffer> voxel_buf;
-    std::unique_ptr<imr::Buffer> greedy_voxel_buf; // for greedy meshing
     size_t num_voxels;
 
     ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors, const ivec2& chunkPos, const bool greedyMeshing);
 
     [[nodiscard]] VkDeviceAddress voxel_buffer_device_address(const bool greedyMeshing) const {
-        return greedyMeshing ? greedy_voxel_buf->device_address() : voxel_buf->device_address();
+        return voxel_buf->device_address();
     }
 };
 
