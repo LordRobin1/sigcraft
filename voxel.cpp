@@ -1,11 +1,12 @@
 #include "voxel.h"
-#include <algorithm>
+
 #include <iostream>
-#include <span>
 
 extern "C" {
 #include "enklume/block_data.h"
 }
+
+inline int toWorldY(const int section, const int y) { return y + section * CUNK_CHUNK_SIZE; }
 
 void chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighbors& neighbours, std::vector<uint8_t>& voxel_buffer,  size_t* num_voxels) {
     for (int section = 0; section < CUNK_CHUNK_SECTIONS_COUNT; section++) {
@@ -52,127 +53,62 @@ void chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighbors&
     }
 }
 
-inline bool isSet(const uint16_t mask, const int n) {
-    return mask & (1 << n);
-}
+void greedyMeshSlice(BitMask& mask, const ChunkData* data, const ivec2& chunkPos, const int worldY, ChunkNeighbors& neighbors, std::vector<uint8_t>& voxelBuffer, size_t* numVoxels) {
+    for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
+        // keep greedily meshing until this row has none of this block type left
+        while (mask.mask[x] != 0) {
+            const int zStart = trailingZeros(mask.mask[x]);
+            const uint16_t shifted = mask.mask[x] >> zStart; // push ones down to LSB
+            const int zLength = trailingOnes(shifted);
+            const int zEnd = zStart + zLength;
 
-inline void setBit(uint16_t& mask, const int n) {
-    if (!isSet(mask, n)) {
-        int x = 1;
-    }
-    mask |= (1u << n);
-}
+            // expand along x-axis
+            int xEnd = x + 1;
+            const uint16_t pattern = ((1u << zLength) - 1) << zStart;
+            while (xEnd < CUNK_CHUNK_SIZE) {
+                // check if all blocks to the side are also valid
+                if ((pattern & mask.mask[xEnd]) != pattern) break;
+                // clear those bits
+                mask.mask[xEnd] &= ~pattern;
+                xEnd++;
+            }
 
-bool occluded(const ChunkData* chunk, ChunkNeighbors& neighbors, const int x, const int y, const int z) {
-    struct n_idx {
-        int x, y, z;
-    };
+            GreedyVoxel gv;
+            gv.start.x = x + chunkPos.x * CUNK_CHUNK_SIZE;
+            gv.start.y = worldY;
+            gv.start.z = zStart + chunkPos.y * CUNK_CHUNK_SIZE;
 
-    const std::array<n_idx, 6> n_idxs{{
-        {x, y+ 1, z},
-        {x, y- 1, z},
-        {x + 1, y, z},
-        {x - 1, y, z},
-        {x, y, z + 1},
-        {x, y, z - 1}
-    }};
+            gv.end.x = xEnd + chunkPos.x * CUNK_CHUNK_SIZE;
+            gv.end.y = worldY + 1;
+            gv.end.z = zEnd + chunkPos.y * CUNK_CHUNK_SIZE;
 
-    bool occluded = true;
-    for (const auto &[x, y, z] : n_idxs) {
-        if (access_safe(chunk, neighbors, x, y, z) == BlockAir) {
-            occluded = false;
-            break;
+            gv.color.x = block_colors[mask.type].r;
+            gv.color.y = block_colors[mask.type].g;
+            gv.color.z = block_colors[mask.type].b;
+
+            gv.copy_to(voxelBuffer);
+            *numVoxels += 1;
+
+            // clear the used bits
+            mask.mask[x] &= ~(((1u << zLength) - 1) << zStart);
         }
     }
-
-    return occluded;
 }
 
 void greedy_chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighbors& neighbours, std::vector<uint8_t>& voxel_buffer,  size_t* num_voxels) {
-    GreedyVoxel v{}; // we need to keep track of the greedy voxel we are currently merging
     for (int section = 0; section < CUNK_CHUNK_SECTIONS_COUNT; section++) {
         for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
-            // we use a bitmask to check if we have already merged a block together.
-            // we only merge slices along the x z plane
-            uint16_t merged[CUNK_CHUNK_SIZE] = {};
-
-            for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
-                BlockData previous = BlockInvalid;
-
-                for (int z = 0; z < CUNK_CHUNK_SIZE; z++) {
-                    //std::cout << "x: " << x << ", y: " << y << " z: " << z << std::endl;
-                    // block has been merged already so we can skip
-                    if (isSet(merged[x], z)) continue;
-                    int world_y = y + section * CUNK_CHUNK_SIZE;
-                    const BlockData block_data = access_safe(chunk, neighbours, x, world_y, z);
-
-                    if (block_data != BlockAir && !occluded(chunk, neighbours, x, world_y, z)) {
-                        // Greedy meshing
-                        // we encountered same type, we can merge :D
-                        if (block_data == previous) {
-                            v.end.z = (z + chunkPos.y * CUNK_CHUNK_SIZE) + 1; // y is our z here
-
-                            // do x-axis merging here, not optimal but will refactor later if needed
-                            if (z + 1 >= CUNK_CHUNK_SIZE || access_safe(chunk, neighbours, x, world_y, z + 1) != previous) {
-                                for (int localZ = v.start.z - chunkPos.y * CUNK_CHUNK_SIZE;
-                                     localZ < v.end.z - chunkPos.y * CUNK_CHUNK_SIZE;
-                                     localZ++) {
-                                    setBit(merged[x], localZ);
-                                }
-
-
-                                const int localX = v.start.x - chunkPos.x * CUNK_CHUNK_SIZE;
-                                int localZ0 = v.start.z - chunkPos.y * CUNK_CHUNK_SIZE;
-                                int localZ1 = v.end.z   - chunkPos.y * CUNK_CHUNK_SIZE;
-                                int mergeX = localX + 1;
-
-                                while (mergeX < CUNK_CHUNK_SIZE) {
-                                    bool ok = true;
-                                    for (int mergeZ = localZ0; mergeZ < localZ1; mergeZ++) {
-                                        int worldX = mergeX + chunkPos.x * CUNK_CHUNK_SIZE;
-                                        int worldZ = mergeZ + chunkPos.y * CUNK_CHUNK_SIZE;
-
-                                        if (isSet(merged[mergeX], mergeZ)) { ok = false; break; }
-                                        if (access_safe(chunk, neighbours, worldX, world_y, worldZ) != previous) { ok = false; break; }
-                                        if (occluded(chunk, neighbours, worldX, world_y, worldZ)) { ok = false; break; }
-                                    }
-                                    if (!ok) break;
-                                    for (int mergeZ = localZ0; mergeZ < localZ1; mergeZ++) {
-                                        setBit(merged[mergeX], mergeZ);
-                                    }
-                                    v.end.x = v.end.x + 1;
-                                    mergeX++;
-                                }
-                            }
-                        } else {
-                            if (previous != BlockInvalid) {
-                                v.copy_to(voxel_buffer);
-                                *num_voxels += 1;
-                            }
-
-                            v.start.x = x + chunkPos.x * CUNK_CHUNK_SIZE;
-                            v.start.y = world_y;
-                            v.start.z = z + chunkPos.y * CUNK_CHUNK_SIZE; // y is our z here
-                            v.end = v.start + 1;
-                            v.color.x = block_colors[block_data].r;
-                            v.color.y = block_colors[block_data].g;
-                            v.color.z = block_colors[block_data].b;
-                            previous = block_data;
-                        }
-                    } else if (previous != BlockInvalid) {
-                        v.copy_to(voxel_buffer);
-                        *num_voxels += 1;
-                        previous = BlockInvalid;
-                    }
-                }
-                if (previous != BlockInvalid) {
-                    v.copy_to(voxel_buffer);
-                    *num_voxels += 1;
-                }
+            const int worldY = toWorldY(section, y);
+            // generate a BitMask for each block type for this vertical slice, but skip air obv
+            for (int i = 1; i < BlockCount; i++) {
+                BitMask mask{chunk, neighbours, worldY, static_cast<BlockId>(i)};
+                // std::cout << "Processing BlockId: " << i << std::endl;
+                greedyMeshSlice(mask, chunk, chunkPos, worldY, neighbours, voxel_buffer, num_voxels);
             }
         }
     }
 }
+
 
 ChunkVoxels::ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors, const ivec2& chunkPos, const bool greedyMeshing) {
     std::vector<uint8_t> voxel_buffer;

@@ -14,7 +14,7 @@
 
 using namespace nasl;
 
-constexpr size_t RENDER_DISTANCE = 24;
+constexpr size_t RENDER_DISTANCE = 16;
 
 struct {
     mat4 matrix;
@@ -289,6 +289,7 @@ int main(int argc, char** argv) {
                 int radius = RENDER_DISTANCE;
                 for (int dx = -radius; dx <= radius; dx++) {
                     for (int dz = -radius; dz <= radius; dz++) {
+                        // std::cout << "Loading chunk (" << dx << ", " << dz << ")" << std::endl;
                         load_chunk(player_chunk_x + dx, player_chunk_z + dz);
                     }
                 }

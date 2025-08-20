@@ -4,7 +4,7 @@
 #include "nasl/nasl.h"
 #include <vector>
 #include <cstdint>
-#include <span>
+#include "BitMask.hpp"
 
 #include "chunk_mesh.h"
 

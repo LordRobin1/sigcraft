@@ -26,13 +26,13 @@ B(Leaves, 0.1, 0.4, 0.1) \
 B(Wood, 0.3, 0.1, 0.0) \
 B(Snow, 1.0, 1.0, 1.0) \
 B(Lava, 1.0, 0.2, 0.0) \
-B(Invalid, -1.0, -1.0, -1.0) \
 B(Unknown, 1.0, 0.0, 1.0)
 
 enum BlockId {
 #define B(name, r, g, b) Block##name,
 BLOCK_TYPES(B)
 #undef B
+    BlockCount
 };
 
 static struct { float r, g, b; } block_colors[] = {
