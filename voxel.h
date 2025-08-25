@@ -24,8 +24,9 @@ struct Voxel {
 };
 
 struct AABB {
-    vec3 min;
-    vec3 max;
+    // Empty by default
+    const vec3 min = vec3(1);
+    const vec3 max = vec3(-1);
 
     AABB(const vec3& min, const vec3& max) : min(min), max(max) {}
 };
