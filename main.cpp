@@ -11,6 +11,7 @@
 #include "nasl/nasl_mat.h"
 
 #include "camera.h"
+#include "frustum.h"
 
 using namespace nasl;
 
@@ -251,8 +252,6 @@ int main(int argc, char** argv) {
             // push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
 
             context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]() {
-
-
                 auto load_chunk = [&](const int cx, const int cz) {
                     Chunk* loaded = world.get_loaded_chunk(cx, cz);
                     if (!loaded)
@@ -290,33 +289,40 @@ int main(int argc, char** argv) {
                     }
                 }
 
-                 for (const auto chunk : world.loaded_chunks()) {
-                     // unload
-                     if (abs(chunk->cx - player_chunk_x) > radius || abs(chunk->cz - player_chunk_z) > radius) {
-                         std::unique_ptr<ChunkVoxels> stolen = std::move(chunk->voxels);
-                         if (stolen) {
-                             ChunkVoxels* released = stolen.release();
-                             context.frame().addCleanupAction([=]() {
-                                 delete released;
-                             });
-                         }
-                         world.unload_chunk(chunk);
-                         continue;
+                const auto frustum = Frustum(view_mat);
+                int culled = 0;
+
+                for (const auto chunk : world.loaded_chunks()) {
+                    // unload
+                    if (abs(chunk->cx - player_chunk_x) > radius || abs(chunk->cz - player_chunk_z) > radius) {
+                        std::unique_ptr<ChunkVoxels> stolen = std::move(chunk->voxels);
+                        if (stolen) {
+                            ChunkVoxels* released = stolen.release();
+                            context.frame().addCleanupAction([=]() {
+                             delete released;
+                            });
+                        }
+                        world.unload_chunk(chunk);
+                        continue;
                      }
 
-                     auto& voxels = chunk->voxels;
-                     if (!voxels || voxels->num_voxels == 0)
-                         continue;
+                    auto& voxels = chunk->voxels;
+                    if (!voxels || voxels->num_voxels == 0)
+                        continue;
 
-                     // assert(voxels->voxel_buf->size > 0);
-                     // assert(voxels->voxel_buf->size == voxels->num_voxels * sizeof(Voxel));
+                    ivec2 pos = {chunk->cx, chunk->cz};
+                    if (!frustum.isInside(voxels->getBoundingBox(pos))) {
+                        culled++;
+                        continue;
+                    }
 
-                     push_constants.voxel_buffer = voxels->voxel_buffer_device_address(greedyMeshing);
-                     vkCmdPushConstants(
-                         cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT,
-                         0, sizeof(push_constants), &push_constants);
-                     vkCmdDraw(cmdbuf, 6, voxels->num_voxels, 0, 0);
-                 }
+                    push_constants.voxel_buffer = voxels->voxel_buffer_device_address();
+                    vkCmdPushConstants(
+                        cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT,
+                        0, sizeof(push_constants), &push_constants);
+                    vkCmdDraw(cmdbuf, 6, voxels->num_voxels, 0, 0);
+                }
+                //std::cout << "Culled " << culled << " chunks" << std::endl;
             });
 
             auto now = imr_get_time_nano();

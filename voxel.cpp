@@ -14,8 +14,8 @@ void chunk_voxels(
     ChunkNeighbors& neighbours,
     std::vector<uint8_t>& voxel_buffer,
     size_t* num_voxels,
-    int* min_height,
-    int* max_height
+    int& min_height,
+    int& max_height
     ) {
     for (int section = 0; section < CUNK_CHUNK_SECTIONS_COUNT; section++) {
         for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
@@ -54,8 +54,8 @@ void chunk_voxels(
                         v.color.z = block_colors[block_data].b;
                         v.copy_to(voxel_buffer);
                         *num_voxels += 1;
-                        *min_height = std::min(*min_height, world_y);
-                        *max_height = std::max(*max_height, world_y);
+                        min_height = std::min(min_height, world_y);
+                        max_height = std::max(max_height, world_y);
                     }
                 }
             }
@@ -126,7 +126,7 @@ ChunkVoxels::ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors, const i
     if (greedyMeshing) {
         greedy_chunk_voxels(neighbors.neighbours[1][1], chunkPos, neighbors, voxel_buffer, &num_voxels);
     } else {
-        chunk_voxels(neighbors.neighbours[1][1], chunkPos, neighbors, voxel_buffer, &num_voxels, &min_height, &max_height);
+        chunk_voxels(neighbors.neighbours[1][1], chunkPos, neighbors, voxel_buffer, &num_voxels, min_height, max_height);
     }
 
     size_t voxel_buffer_size = voxel_buffer.size();

@@ -4,6 +4,8 @@
 #include "nasl/nasl.h"
 #include <vector>
 #include <cstdint>
+#include <limits>
+
 #include "BitMask.hpp"
 
 #include "chunk_mesh.h"
@@ -49,18 +51,18 @@ struct ChunkVoxels {
     std::unique_ptr<imr::Buffer> voxel_buf;
     size_t num_voxels = 0;
     // https://www.badlion.net/minecraft-blog/what-minecraft-height-limit-2024
-    int min_height = -64, max_height = 320;
+    int min_height = std::numeric_limits<int>::max(), max_height = std::numeric_limits<int>::min();
 
-    ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors, const ivec2& chunkPos, const bool greedyMeshing);
+    ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors, const ivec2& chunkPos, bool greedyMeshing);
 
-    AABB getBoundingBox(ivec2& chunk_pos) const {
+    [[nodiscard]] AABB getBoundingBox(const ivec2& chunk_pos) const {
         return {
             vec3(chunk_pos.x * CUNK_CHUNK_SIZE, min_height, chunk_pos.y * CUNK_CHUNK_SIZE),
              vec3(chunk_pos.x * CUNK_CHUNK_SIZE + CUNK_CHUNK_SIZE, max_height, chunk_pos.y * CUNK_CHUNK_SIZE + CUNK_CHUNK_SIZE)
         };
     }
 
-    [[nodiscard]] VkDeviceAddress voxel_buffer_device_address(const bool greedyMeshing) const {
+    [[nodiscard]] VkDeviceAddress voxel_buffer_device_address() const {
         return voxel_buf->device_address();
     }
 };
