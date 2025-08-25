@@ -251,6 +251,9 @@ int main(int argc, char** argv) {
             push_constants.screen_size = vec2(context.image().size().width, context.image().size().height);
             // push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
 
+            const auto frustum = Frustum(camera, m, push_constants.inverse_matrix);
+            int culled = 0;
+
             context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]() {
                 auto load_chunk = [&](const int cx, const int cz) {
                     Chunk* loaded = world.get_loaded_chunk(cx, cz);
@@ -289,9 +292,6 @@ int main(int argc, char** argv) {
                     }
                 }
 
-                const auto frustum = Frustum(view_mat);
-                int culled = 0;
-
                 for (const auto chunk : world.loaded_chunks()) {
                     // unload
                     if (abs(chunk->cx - player_chunk_x) > radius || abs(chunk->cz - player_chunk_z) > radius) {
@@ -311,7 +311,7 @@ int main(int argc, char** argv) {
                         continue;
 
                     ivec2 pos = {chunk->cx, chunk->cz};
-                    if (!frustum.isInside(voxels->getBoundingBox(pos))) {
+                    if (!frustum.isInside(voxels->getBoundingBox(pos), m)) {
                         culled++;
                         continue;
                     }

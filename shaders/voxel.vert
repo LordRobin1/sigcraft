@@ -84,11 +84,11 @@ bool insideAllPlanes(vec4 p) {
     // Relative epsilon (scales with |w|), constant epsilon actually does not work
     float eps = 1e-6 * max(abs(p.w), 1.0);
 
-    if ( distLeft(p) > eps) return false;
-    if ( distRight(p) > eps) return false;
-    if ( distBottom(p) > eps) return false;
-    if ( distTop(p) > eps) return false;
-    if ( distNear(p) > eps) return false;
+    if (distLeft(p) > eps) return false;
+    if (distRight(p) > eps) return false;
+    if (distBottom(p) > eps) return false;
+    if (distTop(p) > eps) return false;
+    if (distNear(p) > eps) return false;
     return true;
 }
 
@@ -100,7 +100,7 @@ vec4 intersectPlane(vec4 a, vec4 b, float dA, float dB) {
     return mix(a, b, clamp(t, 0.0, 1.0));
 }
 
-// Plane distance function array (function pointers not allowed; use switch)
+// Plane distance
 float planeDist(int pid, vec4 p) {
     if (pid == 0) return distLeft(p);
     if (pid == 1) return distRight(p);
