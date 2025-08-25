@@ -133,7 +133,7 @@ int main(int argc, char** argv) {
         } else if (key == GLFW_KEY_F2 && action == GLFW_PRESS) {
             debugShader = (debugShader + 1) % debugShaderFiles.size();
             reload_shaders = true;
-        } else if (key == GLFW_KEY_F12 && action == GLFW_PRESS) {
+        } else if (key == GLFW_KEY_F11 && action == GLFW_PRESS) {
             greedyMeshing = !greedyMeshing;
             reload_shaders = true;
             toggleGreedy = true;
