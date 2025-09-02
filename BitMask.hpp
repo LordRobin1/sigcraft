@@ -40,11 +40,13 @@ inline int trailingOnes(const uint16_t mask) {
     return (mask == 0xFFFF) ? 16 : trailingZeros(~mask);
 }
 
-struct BitMask {
+class BitMask {
+public:
     uint16_t mask[CUNK_CHUNK_SIZE] = {};
-    const BlockId type = BlockAir;
+    BlockId type = BlockAir;
     static_assert(CUNK_CHUNK_SIZE == 16, "BitMask relies on uint16_t, so chunk size must also be 16.");
 
+    BitMask() = default;
     BitMask(const ChunkData* chunk, ChunkNeighbors& neighbors, const int y, const BlockId t) : type(t) {
         for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
             for (int z = 0; z < CUNK_CHUNK_SIZE; z++) {

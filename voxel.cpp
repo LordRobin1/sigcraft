@@ -53,7 +53,17 @@ void chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighbors&
     }
 }
 
-void greedyMeshSlice(BitMask& mask, const ChunkData* data, const ivec2& chunkPos, const int worldY, ChunkNeighbors& neighbors, std::vector<uint8_t>& voxelBuffer, size_t* numVoxels) {
+void greedyMeshSlice(
+    std::array<BitMask, CUNK_CHUNK_SIZE>& maskArray,
+    const int y,
+    const ChunkData* data,
+    const ivec2& chunkPos,
+    const int worldY,
+    ChunkNeighbors& neighbors,
+    std::vector<uint8_t>& voxelBuffer,
+    size_t* numVoxels
+) {
+    BitMask& mask = maskArray[y];
     for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
         // keep greedily meshing until this row has none of this block type left
         while (mask.mask[x] != 0) {
@@ -61,10 +71,10 @@ void greedyMeshSlice(BitMask& mask, const ChunkData* data, const ivec2& chunkPos
             const uint16_t shifted = mask.mask[x] >> zStart; // push ones down to LSB
             const int zLength = trailingOnes(shifted);
             const int zEnd = zStart + zLength;
+            const uint16_t pattern = ((1u << zLength) - 1) << zStart;
 
             // expand along x-axis
             int xEnd = x + 1;
-            const uint16_t pattern = ((1u << zLength) - 1) << zStart;
             while (xEnd < CUNK_CHUNK_SIZE) {
                 // check if all blocks to the side are also valid
                 if ((pattern & mask.mask[xEnd]) != pattern) break;
@@ -73,13 +83,37 @@ void greedyMeshSlice(BitMask& mask, const ChunkData* data, const ivec2& chunkPos
                 xEnd++;
             }
 
+            // expand along y-axis
+            int yEnd = y + 1;
+            while (yEnd < CUNK_CHUNK_SIZE) {
+                BitMask& maskAbove = maskArray[yEnd];
+                bool wholeLevelMatches = true;
+                // check if all rows on the layer above are a match
+                for (int xStart = x; xStart < xEnd; xStart++) {
+                    if ((pattern & maskAbove.mask[xStart]) != pattern) {
+                        wholeLevelMatches = false;
+                        break;
+                    }
+                }
+
+                // no match => stop checking
+                if (!wholeLevelMatches) {
+                    break;
+                }
+
+                // match, so we clear all used blocks
+                for (int xStart = x; xStart < xEnd; xStart++) {
+                    maskAbove.mask[xStart] &= ~pattern;
+                }
+            }
+
             GreedyVoxel gv;
             gv.start.x = x + chunkPos.x * CUNK_CHUNK_SIZE;
             gv.start.y = worldY;
             gv.start.z = zStart + chunkPos.y * CUNK_CHUNK_SIZE;
 
             gv.end.x = xEnd + chunkPos.x * CUNK_CHUNK_SIZE;
-            gv.end.y = worldY + 1;
+            gv.end.y = worldY + (yEnd - y);
             gv.end.z = zEnd + chunkPos.y * CUNK_CHUNK_SIZE;
 
             gv.color.x = block_colors[mask.type].r;
@@ -90,20 +124,21 @@ void greedyMeshSlice(BitMask& mask, const ChunkData* data, const ivec2& chunkPos
             *numVoxels += 1;
 
             // clear the used bits
-            mask.mask[x] &= ~(((1u << zLength) - 1) << zStart);
+            mask.mask[x] &= ~pattern;
         }
     }
 }
 
 void greedy_chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighbors& neighbours, std::vector<uint8_t>& voxel_buffer,  size_t* num_voxels) {
-    for (int section = 0; section < CUNK_CHUNK_SECTIONS_COUNT; section++) {
-        for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
-            const int worldY = toWorldY(section, y);
-            // generate a BitMask for each block type for this vertical slice, but skip air obv
-            for (int i = 1; i < BlockCount; i++) {
-                BitMask mask{chunk, neighbours, worldY, static_cast<BlockId>(i)};
-                // std::cout << "Processing BlockId: " << i << std::endl;
-                greedyMeshSlice(mask, chunk, chunkPos, worldY, neighbours, voxel_buffer, num_voxels);
+    std::array<BitMask, CUNK_CHUNK_SIZE> maskArray;
+    // generate a BitMask for each block type, and for each vertical slice
+    for (int i = 1; i < BlockCount; i++) {
+        for (int section = 0; section < CUNK_CHUNK_SECTIONS_COUNT; section++) {
+            for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
+                maskArray[y] = BitMask(chunk, neighbours, toWorldY(section, y), static_cast<BlockId>(i));
+            }
+            for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
+                greedyMeshSlice(maskArray, y, chunk, chunkPos, toWorldY(section, y), neighbours, voxel_buffer, num_voxels);
             }
         }
     }
