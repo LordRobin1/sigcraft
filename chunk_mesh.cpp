@@ -1,9 +1,3 @@
-extern "C" {
-
-#include "enklume/block_data.h"
-
-}
-
 #include "chunk_mesh.h"
 #include "nasl/nasl.h"
 
@@ -160,7 +154,7 @@ static BlockData access_safe(const ChunkData* chunk, ChunkNeighborsUnsafe& neigh
         i = 2;
     }
 
-    if (y < 0 || y > CUNK_CHUNK_MAX_HEIGHT)
+    if (y < 0 || y >= CUNK_CHUNK_MAX_HEIGHT)
         return BlockAir;
 
     if (z < 0) {

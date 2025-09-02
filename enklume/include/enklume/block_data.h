@@ -32,6 +32,7 @@ enum BlockId {
 #define B(name, r, g, b) Block##name,
 BLOCK_TYPES(B)
 #undef B
+    BlockCount
 };
 
 static struct { float r, g, b; } block_colors[] = {

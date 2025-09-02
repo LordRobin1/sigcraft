@@ -7,6 +7,10 @@
 
 #include <cstddef>
 
+extern "C" {
+#include "enklume/block_data.h"
+}
+
 struct ChunkNeighbors {
     std::shared_ptr<Chunk> neighbours[3][3];
 };
@@ -14,6 +18,8 @@ struct ChunkNeighbors {
 struct ChunkNeighborsUnsafe {
     ChunkData* neighbours[3][3];
 };
+
+BlockData access_safe(const ChunkData* chunk, ChunkNeighbors& neighbours, int x, int y, int z);
 
 struct ChunkMesh {
     std::unique_ptr<imr::Buffer> buf;

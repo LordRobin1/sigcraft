@@ -5,6 +5,9 @@
 #include "chunk_mesh.h"
 
 #include <cmath>
+#include <iostream>
+#include <ostream>
+
 #include "nasl/nasl.h"
 #include "nasl/nasl_mat.h"
 
@@ -13,30 +16,31 @@
 
 using namespace nasl;
 
+constexpr size_t RENDER_DISTANCE = 16;
+
 struct {
     mat4 matrix;
-    ivec3 chunk_position;
-    float time;
+    mat4 inverse_matrix;
+    vec3 camera_position;
+    VkDeviceAddress voxel_buffer;
+    vec2 screen_size;
 } push_constants;
 
-Camera camera = {
-    .position = {
-        0, 128, 0,
-    },
-};
+Camera camera;
 CameraFreelookState camera_state = {
-    .fly_speed = 100.0f,
-    .mouse_sensitivity = 1,
+    .fly_speed = 50.0f,
+    .mouse_sensitivity = 0.75f,
 };
 CameraInput camera_input;
 
 void camera_update(GLFWwindow*, CameraInput* input);
 
 bool reload_shaders = false;
+bool toggleGreedy = false;
 
+std::vector<std::string> shaderFiles = { "voxel.vert.spv", "voxel.frag.spv" };
+bool greedyMeshing = shaderFiles[0].starts_with("greedy");
 struct Shaders {
-    std::vector<std::string> files = { "basic.vert.spv", "basic.frag.spv" };
-
     std::vector<std::unique_ptr<imr::ShaderModule>> modules;
     std::vector<std::unique_ptr<imr::ShaderEntryPoint>> entry_points;
     std::unique_ptr<imr::GraphicsPipeline> pipeline;
@@ -55,41 +59,16 @@ struct Shaders {
         };
         rts.depth = depth;
 
-        VkVertexInputBindingDescription bindings[] = {
-            {
-                .binding = 0,
-                .stride = sizeof(ChunkMesh::Vertex),
-                .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-            },
-        };
+        VkVertexInputBindingDescription bindings[] = {};
 
-        VkVertexInputAttributeDescription attributes[] = {
-            {
-                .location = 0,
-                .binding = 0,
-                .format = VK_FORMAT_R16G16B16_SINT,
-                .offset = 0,
-            },
-            {
-                .location = 1,
-                .binding = 0,
-                .format = VK_FORMAT_R8G8B8_SNORM,
-                .offset = offsetof(ChunkMesh::Vertex, nnx),
-            },
-            {
-                .location = 2,
-                .binding = 0,
-                .format = VK_FORMAT_R8G8B8_UNORM,
-                .offset = offsetof(ChunkMesh::Vertex, br),
-            },
-        };
+        VkVertexInputAttributeDescription attributes[] = {};
 
         VkPipelineVertexInputStateCreateInfo vertex_input {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-            .vertexBindingDescriptionCount = sizeof(bindings) / sizeof(bindings[0]),
-            .pVertexBindingDescriptions = &bindings[0],
-            .vertexAttributeDescriptionCount = sizeof(attributes) / sizeof(attributes[0]),
-            .pVertexAttributeDescriptions = &attributes[0],
+            .vertexBindingDescriptionCount = 0,
+            .pVertexBindingDescriptions = VK_NULL_HANDLE,
+            .vertexAttributeDescriptionCount = 0,
+            .pVertexAttributeDescriptions = VK_NULL_HANDLE,
         };
 
         VkPipelineRasterizationStateCreateInfo rasterization {
@@ -112,7 +91,7 @@ struct Shaders {
         };
 
         std::vector<imr::ShaderEntryPoint*> entry_point_ptrs;
-        for (auto filename : files) {
+        for (auto filename : shaderFiles) {
             VkShaderStageFlagBits stage;
             if (filename.ends_with("vert.spv"))
                 stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -128,45 +107,61 @@ struct Shaders {
     }
 };
 
+int debugShader = 0;
+std::vector<std::string> debugShaderFiles = {"voxel.frag.spv", "visualize_billboards.frag.spv", "outline_billboards.frag.spv"};
+
 int radius = 16;
 
 int main(int argc, char** argv) {
+    if (argc < 2) return 0;
+
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
 
     ThreadPool tp(std::thread::hardware_concurrency());
 
-    if (argc < 2)
-        return 0;
-
-    glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
-        if (key == GLFW_KEY_R && (mods & GLFW_MOD_CONTROL))
-            reload_shaders = true;
-        if (key == GLFW_KEY_PAGE_UP && action == GLFW_PRESS)
-            radius++;
-        if (key == GLFW_KEY_PAGE_DOWN && action == GLFW_PRESS)
-            radius--;
-    });
-
     imr::Context context;
     imr::Device device(context);
     std::mutex device_mutex;
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
-
     auto world = World(argv[1]);
+    glfwSetWindowUserPointer(window, &world);
+
+    glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
+        auto* world_ = static_cast<World*>(glfwGetWindowUserPointer(window));
+        if (!world_) return;
+
+        if (key == GLFW_KEY_R && (mods & GLFW_MOD_CONTROL)) reload_shaders = true;
+        else if (key == GLFW_KEY_F1 && action == GLFW_PRESS) {
+            debugShader = (debugShader + debugShaderFiles.size() - 1) % debugShaderFiles.size();
+            reload_shaders = true;
+        } else if (key == GLFW_KEY_F2 && action == GLFW_PRESS) {
+            debugShader = (debugShader + 1) % debugShaderFiles.size();
+            reload_shaders = true;
+        } else if (key == GLFW_KEY_F11 && action == GLFW_PRESS) {
+            greedyMeshing = !greedyMeshing;
+            reload_shaders = true;
+            toggleGreedy = true;
+        } else if (key == GLFW_KEY_PAGE_UP && action == GLFW_PRESS) {
+            radius++;
+        } else if (key == GLFW_KEY_PAGE_DOWN && action == GLFW_PRESS) {
+            radius--;
+        }
+    });
 
     auto prev_frame = imr_get_time_nano();
     float delta = 0;
 
-    camera = {{0, 0, 3}, {0, 0}, 60};
+    camera = {{30, 141, -12}, {0, 0}, 90};
 
     std::unique_ptr<imr::Image> depthBuffer;
 
     auto shaders = std::make_unique<Shaders>(device, swapchain);
 
     auto& vk = device.dispatch;
+
     while (!glfwWindowShouldClose(window)) {
         fps_counter.tick();
         fps_counter.updateGlfwWindowTitle(window);
@@ -176,10 +171,27 @@ int main(int argc, char** argv) {
             camera_update(window, &camera_input);
             camera_move_freelook(&camera, &camera_input, &camera_state, delta);
 
-            if (reload_shaders) {
+            if (toggleGreedy) {
                 swapchain.drain();
+                for (auto chunk : world.loaded_chunks()) {
+                    std::unique_ptr<ChunkVoxels> stolen = std::move(chunk->voxels);
+                    if (stolen) {
+                        ChunkVoxels* released = stolen.release();
+                        context.frame().addCleanupAction([=]() {
+                            delete released;
+                        });
+                    }
+                    world.unload_chunk(chunk);
+                }
+                toggleGreedy = false;
+            }
+            if (reload_shaders) {
+                shaderFiles[0] = greedyMeshing ? "greedyVoxel.vert.spv" : "voxel.vert.spv";
+                shaderFiles[1] = debugShaderFiles[debugShader];
                 shaders = std::make_unique<Shaders>(device, swapchain);
                 reload_shaders = false;
+                std::cout << "Vertex shader: " << shaderFiles[0] << std::endl;
+                std::cout << "Pixel shader: " << shaderFiles[1] << std::endl;
             }
 
             auto& image = context.image();
@@ -237,28 +249,23 @@ int main(int argc, char** argv) {
             mat4 flip_y = identity_mat4;
             flip_y.rows[1][1] = -1;
             m = m * flip_y;
-            mat4 view_mat = camera_get_view_mat4(&camera, context.image().size().width, context.image().size().height);
+            mat4 view_mat = camera_get_view_mat4(&camera, context.image().size().width, context.image().size().height); // has perspective already
             m = m * view_mat;
-            m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f));
+            // m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f));
 
             auto& pipeline = shaders->pipeline;
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline());
 
-            push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
+            push_constants.matrix = m;
+            push_constants.inverse_matrix = invert_mat4(m);
+            push_constants.camera_position = camera.position;
+            push_constants.screen_size = vec2(context.image().size().width, context.image().size().height);
+            // push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
 
             context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]() {
-                //for (auto pos : positions) {
-                //    mat4 cube_matrix = m;
-                //    cube_matrix = cube_matrix * translate_mat4(pos);
 
-                //    push_constants_batched.matrix = cube_matrix;
-                //    vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants_batched), &push_constants_batched);
-                //    vkCmdDraw(cmdbuf, 12 * 3, 1, 0, 0);
-                //}
 
-                push_constants.matrix = m;
-
-                auto load_chunk = [&](int cx, int cz) {
+                auto load_chunk = [&](const int cx, const int cz) {
                     auto loaded = world.get_loaded_chunk(cx, cz);
                     if (!loaded)
                         world.load_chunk(cx, cz);
@@ -316,12 +323,11 @@ int main(int argc, char** argv) {
                         continue;
 
                     push_constants.chunk_position = { chunk->cx, 0, chunk->cz };
-                    vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants), &push_constants);
+                    vkCmdPushConstants(
+                         cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT,
+                         0, sizeof(push_constants), &push_constants);
 
-                    vkCmdBindVertexBuffers(cmdbuf, 0, 1, &mesh->buf->handle, tmpPtr((VkDeviceSize) 0));
-
-                    assert(mesh->num_verts > 0);
-                    vkCmdDraw(cmdbuf, mesh->num_verts, 1, 0, 0);
+                    vkCmdDraw(cmdbuf, 6, voxels->num_voxels, 0, 0);
 
                     context.frame().addCleanupAction([=, mesh = mesh]() {
 
