@@ -17,8 +17,8 @@ struct ChunkMesh;
 #include <mutex>
 #include <unordered_map>
 #include <vector>
-#include "chunk_mesh.h"
 #include "voxel.h"
+#include <unistd.h>
 
 struct Int2 {
     int32_t x, z;
@@ -48,11 +48,11 @@ struct Chunk {
     int cx, cz;
     McChunk* enkl_chunk = nullptr;
     ChunkData data = {};
-    struct MeshContainer {
-        std::unique_ptr<ChunkVoxels> voxels;
+    struct VoxelContainer {
+        std::shared_ptr<ChunkVoxels> voxels;
         bool task_spawned = false;
     };
-    Mutex<MeshContainer> mesh;
+    Mutex<VoxelContainer> voxels;
 
     Chunk(Region&, int x, int z);
     Chunk(const Chunk&) = delete;

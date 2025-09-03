@@ -16,7 +16,7 @@
 
 using namespace nasl;
 
-constexpr size_t RENDER_DISTANCE = 16;
+int RENDER_DISTANCE = 16;
 
 struct {
     mat4 matrix;
@@ -110,8 +110,6 @@ struct Shaders {
 int debugShader = 0;
 std::vector<std::string> debugShaderFiles = {"voxel.frag.spv", "visualize_billboards.frag.spv", "outline_billboards.frag.spv"};
 
-int radius = 16;
-
 int main(int argc, char** argv) {
     if (argc < 2) return 0;
 
@@ -145,9 +143,9 @@ int main(int argc, char** argv) {
             reload_shaders = true;
             toggleGreedy = true;
         } else if (key == GLFW_KEY_PAGE_UP && action == GLFW_PRESS) {
-            radius++;
+            RENDER_DISTANCE++;
         } else if (key == GLFW_KEY_PAGE_DOWN && action == GLFW_PRESS) {
-            radius--;
+            RENDER_DISTANCE--;
         }
     });
 
@@ -174,14 +172,7 @@ int main(int argc, char** argv) {
             if (toggleGreedy) {
                 swapchain.drain();
                 for (auto chunk : world.loaded_chunks()) {
-                    std::unique_ptr<ChunkVoxels> stolen = std::move(chunk->voxels);
-                    if (stolen) {
-                        ChunkVoxels* released = stolen.release();
-                        context.frame().addCleanupAction([=]() {
-                            delete released;
-                        });
-                    }
-                    world.unload_chunk(chunk);
+                    world.unload_chunk(chunk.get());
                 }
                 toggleGreedy = false;
             }
@@ -251,7 +242,6 @@ int main(int argc, char** argv) {
             m = m * flip_y;
             mat4 view_mat = camera_get_view_mat4(&camera, context.image().size().width, context.image().size().height); // has perspective already
             m = m * view_mat;
-            // m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f));
 
             auto& pipeline = shaders->pipeline;
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline());
@@ -260,44 +250,41 @@ int main(int argc, char** argv) {
             push_constants.inverse_matrix = invert_mat4(m);
             push_constants.camera_position = camera.position;
             push_constants.screen_size = vec2(context.image().size().width, context.image().size().height);
-            // push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
 
             context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]() {
-
-
                 auto load_chunk = [&](const int cx, const int cz) {
                     auto loaded = world.get_loaded_chunk(cx, cz);
                     if (!loaded)
                         world.load_chunk(cx, cz);
                 };
 
-                int player_chunk_x = camera.position.x / 16;
-                int player_chunk_z = camera.position.z / 16;
+                const int player_chunk_x = camera.position.x / 16;
+                const int player_chunk_z = camera.position.z / 16;
 
-                for (int dx = -radius; dx <= radius; dx++) {
-                    for (int dz = -radius; dz <= radius; dz++) {
+                for (int dx = -RENDER_DISTANCE; dx <= RENDER_DISTANCE; dx++) {
+                    for (int dz = -RENDER_DISTANCE; dz <= RENDER_DISTANCE; dz++) {
                         load_chunk(player_chunk_x + dx, player_chunk_z + dz);
                     }
                 }
 
                 for (auto chunk : world.loaded_chunks()) {
-                    if (abs(chunk->cx - player_chunk_x) > radius || abs(chunk->cz - player_chunk_z) > radius) {
+                    if (abs(chunk->cx - player_chunk_x) > RENDER_DISTANCE|| abs(chunk->cz - player_chunk_z) > RENDER_DISTANCE) {
                         world.unload_chunk(chunk.get());
                         continue;
                     }
 
-                    auto mesh_lock = chunk->mesh.lock_mut();
-                    auto& mesh_container = *mesh_lock;
-                    if (!mesh_container.mesh) {
-                        if (mesh_container.task_spawned)
+                    auto voxels_lock = chunk->voxels.lock_mut();
+                    auto& voxel_container = *voxels_lock;
+                    if (!voxel_container.voxels) {
+                        if (voxel_container.task_spawned)
                             continue;
 
                         bool all_neighbours_loaded = true;
                         ChunkNeighbors n = {};
                         for (int dx = -1; dx < 2; dx++) {
                             for (int dz = -1; dz < 2; dz++) {
-                                int nx = chunk->cx + dx;
-                                int nz = chunk->cz + dz;
+                                const int nx = chunk->cx + dx;
+                                const int nz = chunk->cz + dz;
 
                                 auto neighborChunk = world.get_loaded_chunk(nx, nz);
                                 if (neighborChunk)
@@ -307,29 +294,28 @@ int main(int argc, char** argv) {
                             }
                         }
                         if (all_neighbours_loaded) {
-                            mesh_container.task_spawned = true;
+                            voxel_container.task_spawned = true;
                             tp.schedule([n,&device,&device_mutex,chunk = chunk]() {
                                 auto nn = n;
-                                auto mesh = std::make_shared<ChunkMesh>(device, device_mutex, nn);
-                                auto mesh_lock = chunk->mesh.lock_mut();
-                                mesh_lock->mesh = mesh;
-                                mesh_lock->task_spawned = false;
+                                auto voxels = std::make_shared<ChunkVoxels>(device, nn, ivec2{chunk->cx, chunk->cz}, greedyMeshing, device_mutex);
+                                auto voxels_lock = chunk->voxels.lock_mut();
+                                voxels_lock->voxels = voxels;
+                                voxels_lock->task_spawned = false;
                             });
                         }
                         continue;
                     }
-                    auto mesh = mesh_container.mesh;
-                    if (mesh->num_verts == 0)
+                    auto voxels = voxel_container.voxels;
+                    if (voxels->num_voxels == 0)
                         continue;
 
-                    push_constants.chunk_position = { chunk->cx, 0, chunk->cz };
+                    push_constants.voxel_buffer = voxels->voxel_buffer_device_address(greedyMeshing);
                     vkCmdPushConstants(
                          cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT,
                          0, sizeof(push_constants), &push_constants);
-
                     vkCmdDraw(cmdbuf, 6, voxels->num_voxels, 0, 0);
 
-                    context.frame().addCleanupAction([=, mesh = mesh]() {
+                    context.frame().addCleanupAction([=, voxels = voxels]() {
 
                     });
                 }

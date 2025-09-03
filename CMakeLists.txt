@@ -12,7 +12,8 @@ endif ()
 
 add_subdirectory(enklume)
 
-add_executable(sigcraft main.cpp camera.cpp chunk_mesh.cpp world.cpp voxel.cpp)
+add_executable(sigcraft main.cpp camera.cpp chunk_mesh.cpp world.cpp voxel.cpp
+        chunk_access.h)
 target_link_libraries(sigcraft imr enklume nasl::nasl)
 
 target_include_directories(sigcraft PUBLIC "thirdparty/rustex/")

@@ -1,4 +1,5 @@
 #include "voxel.h"
+#include "chunk_mesh.h"
 
 #include <iostream>
 
@@ -8,7 +9,7 @@ extern "C" {
 
 inline int toWorldY(const int section, const int y) { return y + section * CUNK_CHUNK_SIZE; }
 
-void chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighbors& neighbours, std::vector<uint8_t>& voxel_buffer,  size_t* num_voxels) {
+void chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighborsUnsafe& neighbours, std::vector<uint8_t>& voxel_buffer,  size_t* num_voxels) {
     for (int section = 0; section < CUNK_CHUNK_SECTIONS_COUNT; section++) {
         for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
             for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
@@ -59,7 +60,7 @@ void greedyMeshSlice(
     const ChunkData* data,
     const ivec2& chunkPos,
     const int worldY,
-    ChunkNeighbors& neighbors,
+    ChunkNeighborsUnsafe& neighbors,
     std::vector<uint8_t>& voxelBuffer,
     size_t* numVoxels
 ) {
@@ -129,7 +130,7 @@ void greedyMeshSlice(
     }
 }
 
-void greedy_chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighbors& neighbours, std::vector<uint8_t>& voxel_buffer,  size_t* num_voxels) {
+void greedy_chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighborsUnsafe& neighbours, std::vector<uint8_t>& voxel_buffer,  size_t* num_voxels) {
     std::array<BitMask, CUNK_CHUNK_SIZE> maskArray;
     // generate a BitMask for each block type, and for each vertical slice
     for (int i = 1; i < BlockCount; i++) {
@@ -145,17 +146,38 @@ void greedy_chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNei
 }
 
 
-ChunkVoxels::ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors, const ivec2& chunkPos, const bool greedyMeshing) {
+ChunkVoxels::ChunkVoxels(imr::Device& device,
+                         const ChunkNeighbors& neighbors,
+                         const ivec2& chunkPos,
+                         bool greedyMeshing,
+                         std::mutex& deviceMutex)
+{
+    // 1. Generate voxel data locally (no device lock)
     std::vector<uint8_t> voxel_buffer;
-    num_voxels = 0;
-    if (greedyMeshing) {
-        greedy_chunk_voxels(neighbors.neighbours[1][1], chunkPos, neighbors, voxel_buffer, &num_voxels);
-    } else {
-        chunk_voxels(neighbors.neighbours[1][1], chunkPos, neighbors, voxel_buffer, &num_voxels);
-    }
-    size_t voxel_buffer_size = voxel_buffer.size();
-    if (voxel_buffer_size > 0) {
-        voxel_buf = std::make_unique<imr::Buffer>(device, voxel_buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+    ChunkNeighborsUnsafe unsafe{};
+    for (size_t x = 0; x < 3; x++)
+        for (size_t z = 0; z < 3; z++)
+            unsafe.neighbours[x][z] = &neighbors.neighbours[x][z].get()->data;
+
+    if (greedyMeshing)
+        greedy_chunk_voxels(unsafe.neighbours[1][1], chunkPos, unsafe, voxel_buffer, &num_voxels);
+    else
+        chunk_voxels(unsafe.neighbours[1][1], chunkPos, unsafe, voxel_buffer, &num_voxels);
+
+    if (num_voxels == 0 || voxel_buffer.empty())
+        return;
+
+    size_t voxel_buffer_size = voxel_buffer.size() * sizeof(uint8_t);
+
+    // 2. Only lock device for Vulkan buffer creation and upload
+    {
+        std::lock_guard<std::mutex> lock(deviceMutex);
+        voxel_buf = std::make_unique<imr::Buffer>(
+            device,
+            voxel_buffer_size,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+        );
         voxel_buf->uploadDataSync(0, voxel_buffer_size, voxel_buffer.data());
     }
 }
+

@@ -1,14 +1,16 @@
 #ifndef VOXEL_H
 #define VOXEL_H
 
+#include <vulkan/vulkan.h>
+#include "imr/imr.h"
 #include "nasl/nasl.h"
 #include <vector>
 #include <cstdint>
 #include "BitMask.hpp"
 
-#include "chunk_mesh.h"
-
 using namespace nasl;
+
+struct ChunkNeighbors;
 
 struct Voxel {
     ivec3 position;
@@ -39,9 +41,15 @@ struct GreedyVoxel {
 
 struct ChunkVoxels {
     std::unique_ptr<imr::Buffer> voxel_buf;
-    size_t num_voxels;
+    size_t num_voxels = 0;
 
-    ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors, const ivec2& chunkPos, const bool greedyMeshing);
+    ChunkVoxels(
+        imr::Device& device,
+        const ChunkNeighbors& neighbors,
+        const ivec2& chunkPos,
+        const bool greedyMeshing,
+        std::mutex& deviceMutex
+    );
 
     [[nodiscard]] VkDeviceAddress voxel_buffer_device_address(const bool greedyMeshing) const {
         return voxel_buf->device_address();
