@@ -106,6 +106,8 @@ void greedyMeshSlice(
                 for (int xStart = x; xStart < xEnd; xStart++) {
                     maskAbove.mask[xStart] &= ~pattern;
                 }
+
+                yEnd++;
             }
 
             GreedyVoxel gv;
