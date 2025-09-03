@@ -38,7 +38,7 @@ void camera_update(GLFWwindow*, CameraInput* input);
 bool reload_shaders = false;
 bool toggleGreedy = false;
 
-std::vector<std::string> shaderFiles = { "voxel.vert.spv", "voxel.frag.spv" };
+std::vector<std::string> shaderFiles = { "greedyVoxel.vert.spv", "voxel.frag.spv" };
 bool greedyMeshing = shaderFiles[0].starts_with("greedy");
 struct Shaders {
     std::vector<std::unique_ptr<imr::ShaderModule>> modules;

@@ -152,7 +152,6 @@ ChunkVoxels::ChunkVoxels(imr::Device& device,
                          bool greedyMeshing,
                          std::mutex& deviceMutex)
 {
-    // 1. Generate voxel data locally (no device lock)
     std::vector<uint8_t> voxel_buffer;
     ChunkNeighborsUnsafe unsafe{};
     for (size_t x = 0; x < 3; x++)
@@ -169,15 +168,12 @@ ChunkVoxels::ChunkVoxels(imr::Device& device,
 
     size_t voxel_buffer_size = voxel_buffer.size() * sizeof(uint8_t);
 
-    // 2. Only lock device for Vulkan buffer creation and upload
-    {
-        std::lock_guard<std::mutex> lock(deviceMutex);
-        voxel_buf = std::make_unique<imr::Buffer>(
-            device,
-            voxel_buffer_size,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-        );
-        voxel_buf->uploadDataSync(0, voxel_buffer_size, voxel_buffer.data());
-    }
+    std::lock_guard<std::mutex> lock(deviceMutex);
+    voxel_buf = std::make_unique<imr::Buffer>(
+        device,
+        voxel_buffer_size,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+    );
+    voxel_buf->uploadDataSync(0, voxel_buffer_size, voxel_buffer.data());
 }
 
