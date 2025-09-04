@@ -1,7 +1,3 @@
-//
-// Created by robin on 03.09.25.
-//
-
 #include "game.h"
 #include "frustum.h"
 
@@ -123,7 +119,7 @@ void GameVoxels::renderFrame() {
         push_constants.camera_position = camera.position;
         push_constants.screen_size = vec2(context.image().size().width, context.image().size().height);
 
-        const auto frustum = Frustum(camera, m, push_constants.inverse_matrix);
+        const auto frustum = Frustum(m, push_constants.inverse_matrix);
         int culled = 0;
 
         context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]{
@@ -324,7 +320,7 @@ void GameMesh::renderFrame() {
             int player_chunk_x = camera.position.x / 16;
             int player_chunk_z = camera.position.z / 16;
 
-            int radius = 24;
+            int radius = RENDER_DISTANCE;
             for (int dx = -radius; dx <= radius; dx++) {
                 for (int dz = -radius; dz <= radius; dz++) {
                     load_chunk(player_chunk_x + dx, player_chunk_z + dz);

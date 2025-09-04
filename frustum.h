@@ -1,6 +1,5 @@
 #ifndef FRUSTUM_H
 #define FRUSTUM_H
-#include "voxel.h"
 #include "nasl/nasl_mat.h"
 #include "nasl/nasl_vec.h"
 
@@ -15,7 +14,7 @@ struct Frustum {
     vec4 planes[5]{}; // left, right, bottom, top, near
     vec3 corners[8]{};
 
-    explicit Frustum(const Camera& cam, const mat4& perspective, mat4& invPerspective) {
+    explicit Frustum(const mat4& perspective, mat4& invPerspective) {
         planes[0] = perspective.rows[3] + perspective.rows[0]; // left
         planes[1] = perspective.rows[3] - perspective.rows[0]; // right
         planes[2] = perspective.rows[3] + perspective.rows[1]; // bottom
