@@ -34,8 +34,7 @@ struct Frustum {
         };
 
         for (int i = 0; i < 8; i++) {
-            vec4 proj = invPerspective * vec4{ndc[i], 1.0f};
-            corners[i] = vec3_scale(proj.xyz, 1.0f / proj.w);
+            corners[i] = (invPerspective * vec4{ndc[i], 1.0f}).xyz;
         }
     }
 
