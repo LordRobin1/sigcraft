@@ -71,7 +71,9 @@ void greedyMeshSlice(
     const int worldY,
     ChunkNeighbors& neighbors,
     std::vector<uint8_t>& voxelBuffer,
-    size_t* numVoxels
+    size_t* numVoxels,
+    int& min_height,
+    int& max_height
 ) {
     BitMask& mask = maskArray[y];
     for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
@@ -133,6 +135,8 @@ void greedyMeshSlice(
 
             gv.copy_to(voxelBuffer);
             *numVoxels += 1;
+            min_height = std::min(min_height, worldY);
+            max_height = std::max(max_height, worldY + (yEnd - y));
 
             // clear the used bits
             mask.mask[x] &= ~pattern;
@@ -140,7 +144,15 @@ void greedyMeshSlice(
     }
 }
 
-void greedy_chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighbors& neighbours, std::vector<uint8_t>& voxel_buffer,  size_t* num_voxels) {
+void greedy_chunk_voxels(
+    const ChunkData* chunk,
+    const ivec2& chunkPos,
+    ChunkNeighbors& neighbours,
+    std::vector<uint8_t>& voxel_buffer,
+    size_t* num_voxels,
+    int& min_height,
+    int& max_height
+) {
     std::array<BitMask, CUNK_CHUNK_SIZE> maskArray;
     // generate a BitMask for each block type, and for each vertical slice
     for (int i = 1; i < BlockCount; i++) {
@@ -149,7 +161,8 @@ void greedy_chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNei
                 maskArray[y] = BitMask(chunk, neighbours, toWorldY(section, y), static_cast<BlockId>(i));
             }
             for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
-                greedyMeshSlice(maskArray, y, chunk, chunkPos, toWorldY(section, y), neighbours, voxel_buffer, num_voxels);
+                greedyMeshSlice(maskArray, y, chunk, chunkPos, toWorldY(section, y), neighbours, voxel_buffer,
+                                num_voxels, min_height, max_height);
             }
         }
     }
@@ -160,7 +173,7 @@ ChunkVoxels::ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors, const i
     std::vector<uint8_t> voxel_buffer;
     num_voxels = 0;
     if (greedyMeshing) {
-        greedy_chunk_voxels(neighbors.neighbours[1][1], chunkPos, neighbors, voxel_buffer, &num_voxels);
+        greedy_chunk_voxels(neighbors.neighbours[1][1], chunkPos, neighbors, voxel_buffer, &num_voxels, min_height, max_height);
     } else {
         chunk_voxels(neighbors.neighbours[1][1], chunkPos, neighbors, voxel_buffer, &num_voxels, min_height, max_height);
     }
