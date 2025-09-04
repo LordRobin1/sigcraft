@@ -175,7 +175,7 @@ BlockData access_safe(const ChunkData* chunk, ChunkNeighbors& neighbours, int x,
     return BlockAir;
 }
 
-/*void chunk_mesh(const ChunkData* chunk, ChunkNeighbors& neighbours, std::vector<uint8_t>& g, size_t* num_verts) {
+void chunk_mesh(const ChunkData* chunk, ChunkNeighbors& neighbours, std::vector<uint8_t>& g, size_t* num_verts) {
     *num_verts = 0;
     for (int section = 0; section < CUNK_CHUNK_SECTIONS_COUNT; section++) {
         for (int x = 0; x < CUNK_CHUNK_SIZE; x++)
@@ -233,4 +233,4 @@ ChunkMesh::ChunkMesh(imr::Device& d, ChunkNeighbors& n) {
         buf = std::make_unique<imr::Buffer>(d, buffer_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
         buf->uploadDataSync(0, buffer_size, buffer);
     }
-}*/
+}
