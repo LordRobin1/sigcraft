@@ -1,7 +1,7 @@
 #pragma once
 
-#include <stddef.h>
 #include <math.h>
+#include <GLFW/glfw3.h>
 
 #include "nasl/nasl.h"
 #include "nasl/nasl_mat.h"
@@ -35,6 +35,8 @@ typedef struct {
         bool forward, back, left, right;
     } keys;
 } CameraInput;
+
+void camera_update(GLFWwindow*, CameraInput* input);
 
 bool camera_move_freelook(Camera*, CameraInput*, CameraFreelookState*, float);
 
