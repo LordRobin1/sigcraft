@@ -55,7 +55,7 @@ private:
         vec3 camera_position;
         VkDeviceAddress voxel_buffer;
         vec2 screen_size;
-    } push_constants;
+    } push_constants = {};
 
 public:
     GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &swapchain, World *world, Camera &camera);
@@ -68,7 +68,7 @@ private:
         mat4 matrix;
         ivec3 chunk_position;
         float time;
-    } push_constants;
+    } push_constants = {};
 
 public:
     GameMesh(imr::Device& device, GLFWwindow* window, imr::Swapchain& swapchain, World* world, Camera& camera);
