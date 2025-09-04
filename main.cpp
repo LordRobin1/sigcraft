@@ -23,8 +23,9 @@ int main(int argc, char** argv) {
     imr::FpsCounter fps_counter;
     auto world = World(argv[1]);
     Camera camera = {{30, 141, -12}, {0, 0}, 90};
-    std::unique_ptr<Game> game = std::make_unique<GameVoxels>(device, window, swapchain, &world, camera);
     bool voxels = true;
+    bool greedyVoxels = false;
+    std::unique_ptr<Game> game = std::make_unique<GameVoxels>(device, window, swapchain, &world, camera, greedyVoxels);
 
     while (!glfwWindowShouldClose(window)) {
         fps_counter.tick();
@@ -32,13 +33,15 @@ int main(int argc, char** argv) {
 
         if (game->toggleMode) {
             swapchain.drain();
-            delete game.release();
             if (voxels) {
+                greedyVoxels = static_cast<GameVoxels*>(&*game)->greedyVoxels;
+                delete game.release();
                 game = std::make_unique<GameMesh>(device, window, swapchain, &world, camera);
                 voxels = false;
                 std::cout << "Switched to mesh mode" << std::endl;
             } else {
-                game = std::make_unique<GameVoxels>(device, window, swapchain, &world, camera);
+                delete game.release();
+                game = std::make_unique<GameVoxels>(device, window, swapchain, &world, camera, greedyVoxels);
                 voxels = true;
                 std::cout << "Switched to voxel mode" << std::endl;
             }

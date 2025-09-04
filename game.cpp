@@ -1,9 +1,13 @@
 #include "game.h"
 #include "frustum.h"
 
-GameVoxels::GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &swapchain, World *world, Camera &camera)
-        : Game(device, window, swapchain, VoxelShaders(device, swapchain, {"voxel.vert.spv", "voxel.frag.spv"}), world, camera)
-{
+GameVoxels::GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &swapchain, World *world, Camera &camera,
+                       const bool greedyVoxels)
+    : Game(device, window, swapchain, VoxelShaders(device, swapchain, {
+                                                       greedyVoxels ? "greedyVoxel.vert.spv" : "voxel.vert.spv",
+                                                       "voxel.frag.spv"
+                                                   }), world, camera),
+      greedyVoxels(greedyVoxels) {
     glfwSetWindowUserPointer(window, this);
     glfwSetKeyCallback(window, [](GLFWwindow *window, int key, int scancode, int action, int mods) {
         auto* game = static_cast<GameVoxels*>(glfwGetWindowUserPointer(window));
@@ -18,7 +22,7 @@ GameVoxels::GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &
             game->debugShader = (game->debugShader + 1) % game->fragmentShaders.size();
             game->reload_shaders = true;
         } else if (key == GLFW_KEY_F11 && action == GLFW_PRESS) {
-            game->greedyMeshing = !game->greedyMeshing;
+            game->greedyVoxels = !game->greedyVoxels;
             game->reload_shaders = true;
             game->toggleGreedy = true;
         } else if (key == GLFW_KEY_F12 && action == GLFW_PRESS) {
@@ -40,7 +44,7 @@ void GameVoxels::renderFrame() {
     }
     if (reload_shaders) {
         const std::vector<std::string> shaderFiles = {
-            greedyMeshing ? "greedyVoxel.vert.spv" : "voxel.vert.spv",
+            greedyVoxels ? "greedyVoxel.vert.spv" : "voxel.vert.spv",
             fragmentShaders[debugShader]
         };
         shaders = VoxelShaders(device, swapchain, shaderFiles);
@@ -145,7 +149,7 @@ void GameVoxels::renderFrame() {
                         }
                     }
                     if (all_neighbours_loaded)
-                        loaded->voxels = std::make_unique<ChunkVoxels>(device, n, ivec2{cx, cz}, greedyMeshing);
+                        loaded->voxels = std::make_unique<ChunkVoxels>(device, n, ivec2{cx, cz}, greedyVoxels);
                 }
             };
 
@@ -176,6 +180,7 @@ void GameVoxels::renderFrame() {
                  if (!voxels || voxels->num_voxels == 0)
                      continue;
 
+                 push_constants.voxel_buffer = voxels->voxel_buffer_device_address(greedyVoxels);
                 ivec2 pos = {chunk->cx, chunk->cz};
                 if (!frustum.isInside(voxels->getBoundingBox(pos), m)) {
                     culled++;
