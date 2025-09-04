@@ -287,6 +287,10 @@ void GameMesh::renderFrame() {
 
         push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
 
+        mat4 inv = invert_mat4(m);
+        const auto frustum = Frustum(m, inv);
+        int culled = 0;
+
         context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]() {
             push_constants.matrix = m;
 
@@ -344,7 +348,13 @@ void GameMesh::renderFrame() {
                 if (!mesh || mesh->num_verts == 0)
                     continue;
 
-                push_constants.chunk_position = { chunk->cx, 0, chunk->cz };
+                const ivec2 pos = { chunk->cx, chunk->cz };
+                if (!frustum.isInside(mesh->getBoundingBox(pos), m)) {
+                    culled++;
+                    continue;
+                }
+
+                push_constants.chunk_position = { pos.x, 0, pos.y };
                 vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants), &push_constants);
 
                 vkCmdBindVertexBuffers(cmdbuf, 0, 1, &mesh->buf->handle, tmpPtr((VkDeviceSize) 0));
@@ -353,6 +363,7 @@ void GameMesh::renderFrame() {
                 vkCmdDraw(cmdbuf, mesh->num_verts, 1, 0, 0);
             }
         });
+        std::cout << "Culled " << culled << " chunks" << std::endl;
 
         auto now = imr_get_time_nano();
         delta = ((float) ((now - prev_frame) / 1000L)) / 1000000.0f;

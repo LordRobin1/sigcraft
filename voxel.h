@@ -7,8 +7,7 @@
 #include <limits>
 
 #include "BitMask.hpp"
-
-#include "chunk_mesh.h"
+#include "aabb.h"
 
 using namespace nasl;
 
@@ -23,14 +22,6 @@ struct Voxel {
         for (auto b : tmp)
             buf.push_back(b);
     }
-};
-
-struct AABB {
-    // Empty by default
-    const vec3 min = vec3(1);
-    const vec3 max = vec3(-1);
-
-    AABB(const vec3& min, const vec3& max) : min(min), max(max) {}
 };
 
 struct GreedyVoxel {
@@ -50,7 +41,6 @@ struct GreedyVoxel {
 struct ChunkVoxels {
     std::unique_ptr<imr::Buffer> voxel_buf;
     size_t num_voxels = 0;
-    // https://www.badlion.net/minecraft-blog/what-minecraft-height-limit-2024
     int min_height = std::numeric_limits<int>::max(), max_height = std::numeric_limits<int>::min();
 
     ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors, const ivec2& chunkPos, bool greedyMeshing);

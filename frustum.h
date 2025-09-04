@@ -2,6 +2,7 @@
 #define FRUSTUM_H
 #include "nasl/nasl_mat.h"
 #include "nasl/nasl_vec.h"
+#include "aabb.h"
 
 using namespace nasl;
 

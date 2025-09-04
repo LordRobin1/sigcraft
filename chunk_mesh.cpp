@@ -175,7 +175,14 @@ BlockData access_safe(const ChunkData* chunk, ChunkNeighbors& neighbours, int x,
     return BlockAir;
 }
 
-void chunk_mesh(const ChunkData* chunk, ChunkNeighbors& neighbours, std::vector<uint8_t>& g, size_t* num_verts) {
+void chunk_mesh(
+    const ChunkData* chunk,
+    ChunkNeighbors& neighbours,
+    std::vector<uint8_t>& g,
+    size_t* num_verts,
+    int& min_height,
+    int& max_height
+) {
     *num_verts = 0;
     for (int section = 0; section < CUNK_CHUNK_SECTIONS_COUNT; section++) {
         for (int x = 0; x < CUNK_CHUNK_SIZE; x++)
@@ -188,31 +195,41 @@ void chunk_mesh(const ChunkData* chunk, ChunkNeighbors& neighbours, std::vector<
                         color.x = block_colors[block_data].r;
                         color.y = block_colors[block_data].g;
                         color.z = block_colors[block_data].b;
+                        bool pasted = false;
                         if (access_safe(chunk, neighbours, x, world_y + 1, z) == BlockAir) {
                             paste_plus_y_face(g, color, x, world_y, z);
                             *num_verts += 6;
+                            pasted = true;
                         }
                         if (access_safe(chunk, neighbours, x, world_y - 1, z) == BlockAir) {
                             paste_minus_y_face(g, color, x, world_y, z);
                             *num_verts += 6;
+                            pasted = true;
                         }
 
                         if (access_safe(chunk, neighbours, x + 1, world_y, z) == BlockAir) {
                             paste_plus_x_face(g, color, x, world_y, z);
                             *num_verts += 6;
+                            pasted = true;
                         }
                         if (access_safe(chunk, neighbours, x - 1, world_y, z) == BlockAir) {
                             paste_minus_x_face(g, color, x, world_y, z);
                             *num_verts += 6;
+                            pasted = true;
                         }
 
                         if (access_safe(chunk, neighbours, x, world_y, z + 1) == BlockAir) {
                             paste_plus_z_face(g, color, x, world_y, z);
                             *num_verts += 6;
+                            pasted = true;
                         }
                         if (access_safe(chunk, neighbours, x, world_y, z - 1) == BlockAir) {
                             paste_minus_z_face(g, color, x, world_y, z);
                             *num_verts += 6;
+                        }
+                        if (pasted) {
+                            min_height = std::min(min_height, world_y);
+                            max_height = std::max(max_height, world_y);
                         }
                     }
                 }
@@ -221,10 +238,7 @@ void chunk_mesh(const ChunkData* chunk, ChunkNeighbors& neighbours, std::vector<
 
 ChunkMesh::ChunkMesh(imr::Device& d, ChunkNeighbors& n) {
     std::vector<uint8_t> g;
-    chunk_mesh(n.neighbours[1][1], n, g, &num_verts);
-
-    //fprintf(stderr, "%zu vertices, totalling %zu KiB of data\n", num_verts, num_verts * sizeof(float) * 5 / 1024);
-    //fflush(stderr);
+    chunk_mesh(n.neighbours[1][1], n, g, &num_verts, min_height, max_height);
 
     size_t buffer_size = g.size() * sizeof(uint8_t);
     void* buffer = g.data();
