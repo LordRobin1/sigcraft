@@ -45,7 +45,6 @@ public:
 struct GameVoxels final : Game {
 private:
     bool toggleGreedy = false;
-    bool greedyMeshing = false;
     int debugShader = 0;
     std::vector<std::string> vertexShaders = { "voxel.vert.spv", "greedyVoxel.vert.spv" };
     std::vector<std::string> fragmentShaders = {"voxel.frag.spv", "visualize_billboards.frag.spv", "outline_billboards.frag.spv"};
@@ -58,8 +57,9 @@ private:
     } push_constants;
 
 public:
-    GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &swapchain, World *world, Camera &camera);
+    GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &swapchain, World *world, Camera &camera, bool greedyVoxels);
     void renderFrame() override;
+    bool greedyVoxels;
 };
 
 struct GameMesh final : Game {
