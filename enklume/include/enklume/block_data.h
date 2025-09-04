@@ -26,6 +26,8 @@ B(Leaves, 0.1, 0.4, 0.1) \
 B(Wood, 0.3, 0.1, 0.0) \
 B(Snow, 1.0, 1.0, 1.0) \
 B(Lava, 1.0, 0.2, 0.0) \
+B(Bedrock, 0.1, 0.1, 0.1) \
+B(SandStone, 0.8, 0.8, 0) \
 B(Unknown, 1.0, 0.0, 1.0)
 
 enum BlockId {

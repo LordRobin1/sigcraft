@@ -20,8 +20,6 @@ in vec3 colorIn;
 
 layout(scalar, push_constant) uniform T {
     mat4 matrix;
-    mat4 inverse_matrix;
-    vec3 camera_position;
     ivec3 chunk_position;
     float time;
 } push_constants;

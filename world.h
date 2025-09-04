@@ -37,6 +37,7 @@ struct Chunk {
     McChunk* enkl_chunk = nullptr;
     ChunkData data = {};
     std::unique_ptr<ChunkVoxels> voxels;
+    std::unique_ptr<ChunkMesh> mesh;
 
     Chunk(Region&, int x, int z);
     Chunk(const Chunk&) = delete;

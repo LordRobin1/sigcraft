@@ -23,6 +23,8 @@ static BlockData decode_pre_flattening_id(uint8_t id) {
         return BlockStone;
     if (id == 5)
         return BlockPlanks;
+    if (id == 7)
+        return BlockBedrock;
     if (id == 8 || id == 9)
         return BlockWater;
     if (id == 10 || id == 11)
@@ -35,10 +37,13 @@ static BlockData decode_pre_flattening_id(uint8_t id) {
         return BlockWood;
     if (id == 18 || id == 161)
         return BlockLeaves;
+    if (id == 24)
+        return BlockSandStone;
     if (id == 31)
         return BlockTallGrass;
     if (id == 78 || id == 80)
         return BlockSnow;
+    // printf("Unknown block id: %d\n", id);
     return BlockUnknown;
 }
 
@@ -71,6 +76,11 @@ static BlockData decode_flattened_id(const char* id) {
         return BlockTallGrass;
     if ((strcmp("minecraft:snow_layer", id) == 0) || strcmp("minecraft:snow", id) == 0)
         return BlockSnow;
+    if (strcmp("minecraft:bedrock", id) == 0)
+        return BlockBedrock;
+    if (strcmp("minecraft:sandstone", id) == 0)
+        return BlockSandStone;
+    // printf("Unknown block id: %s\n", id);
     return BlockUnknown;
 }
 
