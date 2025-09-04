@@ -12,7 +12,7 @@ endif ()
 
 add_subdirectory(enklume)
 
-add_executable(sigcraft main.cpp camera.cpp chunk_mesh.cpp world.cpp voxel.cpp)
+add_executable(sigcraft main.cpp camera.cpp chunk_mesh.cpp world.cpp voxel.cpp game.cpp)
 target_link_libraries(sigcraft imr enklume nasl::nasl)
 
 add_custom_target(basic_vert_spv COMMAND ${GLSLANG_EXE} -V -S vert ${CMAKE_CURRENT_SOURCE_DIR}/shaders/basic.vert -o ${CMAKE_CURRENT_BINARY_DIR}/basic.vert.spv)
