@@ -1,13 +1,13 @@
 #pragma once
-#include "chunk_mesh.h"
 
 #include <cassert>
 #include <cstdint>
 #include <enklume/block_data.h>
+#include "chunk_access.h"
 
 struct n_idx { int x, y, z; };
 
-inline bool isOccluded(const ChunkData* chunk, ChunkNeighbors& neighbors, const int x, const int y, const int z) {
+inline bool isOccluded(const ChunkData* chunk, ChunkNeighborsUnsafe& neighbors, const int x, const int y, const int z) {
     const std::array<n_idx, 6> n_idxs{{
         {x, y+ 1, z},
         {x, y- 1, z},
@@ -47,7 +47,7 @@ public:
     static_assert(CUNK_CHUNK_SIZE == 16, "BitMask relies on uint16_t, so chunk size must also be 16.");
 
     BitMask() = default;
-    BitMask(const ChunkData* chunk, ChunkNeighbors& neighbors, const int y, const BlockId t) : type(t) {
+    BitMask(const ChunkData* chunk, ChunkNeighborsUnsafe& neighbors, const int y, const BlockId t) : type(t) {
         for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
             for (int z = 0; z < CUNK_CHUNK_SIZE; z++) {
                 if (!isOccluded(chunk, neighbors, x, y, z) && access_safe(chunk, neighbors, x, y, z) == t)

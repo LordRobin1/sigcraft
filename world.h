@@ -8,8 +8,17 @@ extern "C" {
 
 }
 
-#include "chunk_mesh.h"
+struct ChunkMesh;
+
+#include "rustex.h"
+#include "threadpool.h"
+
+#include <future>
+#include <mutex>
+#include <unordered_map>
+#include <vector>
 #include "voxel.h"
+#include <unistd.h>
 
 struct Int2 {
     int32_t x, z;
@@ -31,6 +40,9 @@ struct std::hash<Int2> {
 struct World;
 struct Region;
 
+template<typename T>
+using Mutex = rustex::mutex<T>;
+
 struct Chunk {
     Region& region;
     int cx, cz;
@@ -38,6 +50,16 @@ struct Chunk {
     ChunkData data = {};
     std::unique_ptr<ChunkVoxels> voxels;
     std::unique_ptr<ChunkMesh> mesh;
+    struct VoxelContainer {
+        std::shared_ptr<ChunkVoxels> voxels;
+        bool task_spawned = false;
+    };
+    Mutex<VoxelContainer> voxels;
+    struct MeshContainer {
+        std::shared_ptr<ChunkVoxels> mesh;
+        bool task_spawned = false;
+    };
+    Mutex<VoxelContainer> mesh;
 
     Chunk(Region&, int x, int z);
     Chunk(const Chunk&) = delete;
@@ -56,32 +78,44 @@ struct Region {
     Region(const Region&) = delete;
     ~Region();
 
-    Chunk* get_chunk(unsigned rcx, unsigned rcz);
 protected:
-    Chunk* load_chunk(int cx, int cz);
-    void unload_chunk(Chunk*);
+    int users = 0;
+
+    Chunk* get_chunk(unsigned rcx, unsigned rcz);
     friend World;
+    friend Chunk;
 };
 
 struct World {
     Enkl_Allocator allocator;
     McWorld* enkl_world;
-    std::unordered_map<Int2, std::unique_ptr<Region>> regions;
+    Mutex<std::unordered_map<Int2, std::unique_ptr<Region>>> regions;
+
+    struct ChunkHandle {
+        Mutex<std::shared_ptr<Chunk>> handle;
+    };
+    Mutex<std::unordered_map<Int2, std::shared_ptr<ChunkHandle>>> held_chunks;
 
     explicit World(const char*);
     World(const World&) = delete;
     ~World();
 
-    Chunk* load_chunk(int x, int y);
+    void load_chunk(int chunk_x, int chunk_z);
     void unload_chunk(Chunk*);
-    Chunk* get_loaded_chunk(int x, int z);
-    std::vector<Chunk*> loaded_chunks();
+    std::shared_ptr<Chunk> get_loaded_chunk(int x, int z);
+    std::vector<std::shared_ptr<Chunk>> loaded_chunks();
 private:
-    Region* get_loaded_region(int rx, int rz);
-    Region* load_region(int rx, int rz);
-    void unload_region(Region*);
+    ThreadPool tp { 1 };
+
+    template<typename Guard>
+    Region* get_loaded_region(Guard&, int rx, int rz);
+    template<typename Guard>
+    Region* load_region(Guard&, int rx, int rz);
+    template<typename Guard>
+    void unload_region(Guard, Region*);
 
     friend Region;
+    friend Chunk;
 };
 
 //WorldChunk world[WORLD_SIZE][WORLD_SIZE];
