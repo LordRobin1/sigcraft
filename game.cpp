@@ -1,11 +1,11 @@
 #include "game.h"
 
 GameVoxels::GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &swapchain, World *world, Camera &camera,
-                       const bool greedyVoxels)
+                       const bool greedyVoxels, std::mutex& device_mutex, ThreadPool& tp)
     : Game(device, window, swapchain, VoxelShaders(device, swapchain, {
                                                        greedyVoxels ? "greedyVoxel.vert.spv" : "voxel.vert.spv",
                                                        "voxel.frag.spv"
-                                                   }), world, camera),
+                                                   }), world, camera, device_mutex, tp),
       greedyVoxels(greedyVoxels) {
     glfwSetWindowUserPointer(window, this);
     glfwSetKeyCallback(window, [](GLFWwindow *window, int key, int scancode, int action, int mods) {
@@ -33,14 +33,12 @@ GameVoxels::GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &
 void GameVoxels::renderFrame() {
     if (toggleGreedy) {
         swapchain.drain();
-        for (const auto chunk : world->loaded_chunks()) {
-            if (std::unique_ptr<ChunkVoxels> stolen = std::move(chunk->voxels)) {
-                delete stolen.release();
-            }
+        for (auto chunk : world->loaded_chunks()) {
             world->unload_chunk(chunk);
         }
         toggleGreedy = false;
     }
+
     if (reload_shaders) {
         const std::vector<std::string> shaderFiles = {
             greedyVoxels ? "greedyVoxel.vert.spv" : "voxel.vert.spv",
@@ -122,66 +120,80 @@ void GameVoxels::renderFrame() {
         push_constants.camera_position = camera.position;
         push_constants.screen_size = vec2(context.image().size().width, context.image().size().height);
 
-        context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]{
+        context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]() {
             auto load_chunk = [&](const int cx, const int cz) {
-                Chunk* loaded = world->get_loaded_chunk(cx, cz);
-                if (!loaded)
+                auto loaded = world->get_loaded_chunk(cx, cz);
+                if (!loaded) {
+                    std::cout << "Loading chunk: (" << cx << ", " << cz << ")" << std::endl;
                     world->load_chunk(cx, cz);
-                else {
-                    if (loaded->voxels) return;
-
-                    bool all_neighbours_loaded = true;
-                    ChunkNeighbors n = {};
-                    for (int dx = -1; dx < 2; dx++) {
-                        for (int dz = -1; dz < 2; dz++) {
-                            const int nx = cx + dx;
-                            const int nz = cz + dz;
-
-                            const auto neighborChunk = world->get_loaded_chunk(nx, nz);
-                            if (neighborChunk)
-                                n.neighbours[dx + 1][dz + 1] = &neighborChunk->data;
-                            else
-                                all_neighbours_loaded = false;
-                        }
-                    }
-                    if (all_neighbours_loaded)
-                        loaded->voxels = std::make_unique<ChunkVoxels>(device, n, ivec2{cx, cz}, greedyVoxels);
                 }
             };
 
             const int player_chunk_x = camera.position.x / 16;
             const int player_chunk_z = camera.position.z / 16;
 
-            constexpr int radius = RENDER_DISTANCE;
-            for (int dx = -radius; dx <= radius; dx++) {
-                for (int dz = -radius; dz <= radius; dz++) {
+            for (int dx = -RENDER_DISTANCE; dx <= RENDER_DISTANCE; dx++) {
+                for (int dz = -RENDER_DISTANCE; dz <= RENDER_DISTANCE; dz++) {
                     load_chunk(player_chunk_x + dx, player_chunk_z + dz);
                 }
             }
 
-             for (const auto chunk : world->loaded_chunks()) {
-                 // unload
-                 if (abs(chunk->cx - player_chunk_x) > radius || abs(chunk->cz - player_chunk_z) > radius) {
-                     if (std::unique_ptr<ChunkVoxels> stolen = std::move(chunk->voxels)) {
-                         const ChunkVoxels* released = stolen.release();
-                         context.frame().addCleanupAction([=]{
-                             delete released;
-                         });
-                     }
-                     world->unload_chunk(chunk);
-                     continue;
-                 }
+            auto chunks = world->loaded_chunks();
+            for (auto chunk : chunks) {
+                if (abs(chunk->cx - player_chunk_x) > RENDER_DISTANCE|| abs(chunk->cz - player_chunk_z) > RENDER_DISTANCE) {
+                    auto alive = chunk;
+                    context.frame().addCleanupAction([this, alive]() {
+                        world->unload_chunk(alive);
+                    });
+                    continue;
+                }
 
-                 const auto& voxels = chunk->voxels;
-                 if (!voxels || voxels->num_voxels == 0)
-                     continue;
+                auto voxels_lock = chunk->voxels.lock_mut();
+                auto& voxel_container = *voxels_lock;
+                if (!voxel_container.voxels) {
+                    if (voxel_container.task_spawned)
+                        continue;
 
-                 push_constants.voxel_buffer = voxels->voxel_buffer_device_address(greedyVoxels);
-                 vkCmdPushConstants(
+                    bool all_neighbours_loaded = true;
+                    ChunkNeighbors n = {};
+                    for (int dx = -1; dx < 2; dx++) {
+                        for (int dz = -1; dz < 2; dz++) {
+                            const int nx = chunk->cx + dx;
+                            const int nz = chunk->cz + dz;
+
+                            auto neighborChunk = world->get_loaded_chunk(nx, nz);
+                            if (neighborChunk)
+                                n.neighbours[dx + 1][dz + 1] = neighborChunk;
+                            else
+                                all_neighbours_loaded = false;
+                        }
+                    }
+                    if (all_neighbours_loaded) {
+                        voxel_container.task_spawned = true;
+                        tp.schedule([n, chunk = chunk, this]() {
+                            auto nn = n;
+                            auto voxels = std::make_shared<ChunkVoxels>(this->device, nn, ivec2{chunk->cx, chunk->cz}, greedyVoxels, this->device_mutex);
+                            auto voxels_lock = chunk->voxels.lock_mut();
+                            voxels_lock->voxels = voxels;
+                            voxels_lock->task_spawned = false;
+                        });
+                    }
+                    continue;
+                }
+                auto voxels = voxel_container.voxels;
+                if (voxels->num_voxels == 0)
+                    continue;
+
+                push_constants.voxel_buffer = voxels->voxel_buffer_device_address(greedyVoxels);
+                vkCmdPushConstants(
                      cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT,
                      0, sizeof(push_constants), &push_constants);
-                 vkCmdDraw(cmdbuf, 6, voxels->num_voxels, 0, 0);
-             }
+                vkCmdDraw(cmdbuf, 6, voxels->num_voxels, 0, 0);
+
+                context.frame().addCleanupAction([=, voxels = voxels]() {
+
+                });
+            }
         });
 
         auto now = imr_get_time_nano();
@@ -192,8 +204,8 @@ void GameVoxels::renderFrame() {
     });
 }
 
-GameMesh::GameMesh(imr::Device& device, GLFWwindow* window, imr::Swapchain& swapchain, World* world, Camera& camera)
-    : Game(device, window, swapchain, MeshShaders(device, swapchain), world, camera) {
+GameMesh::GameMesh(imr::Device& device, GLFWwindow* window, imr::Swapchain& swapchain, World* world, Camera& camera, std::mutex& device_mutex, ThreadPool& tp)
+    : Game(device, window, swapchain, MeshShaders(device, swapchain), world, camera, device_mutex, tp) {
     glfwSetWindowUserPointer(window, this);
 
     glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
@@ -288,54 +300,57 @@ void GameMesh::renderFrame() {
                 auto loaded = world->get_loaded_chunk(cx, cz);
                 if (!loaded)
                     world->load_chunk(cx, cz);
-                else {
-                    if (loaded->mesh)
-                        return;
-
-                    bool all_neighbours_loaded = true;
-                    ChunkNeighbors n = {};
-                    for (int dx = -1; dx < 2; dx++) {
-                        for (int dz = -1; dz < 2; dz++) {
-                            int nx = cx + dx;
-                            int nz = cz + dz;
-
-                            auto neighborChunk = world->get_loaded_chunk(nx, nz);
-                            if (neighborChunk)
-                                n.neighbours[dx + 1][dz + 1] = &neighborChunk->data;
-                            else
-                                all_neighbours_loaded = false;
-                        }
-                    }
-                    if (all_neighbours_loaded)
-                        loaded->mesh = std::make_unique<ChunkMesh>(device, n);
-                }
             };
 
             int player_chunk_x = camera.position.x / 16;
             int player_chunk_z = camera.position.z / 16;
 
-            int radius = RENDER_DISTANCE;
-            for (int dx = -radius; dx <= radius; dx++) {
-                for (int dz = -radius; dz <= radius; dz++) {
+            for (int dx = -RENDER_DISTANCE; dx <= RENDER_DISTANCE; dx++) {
+                for (int dz = -RENDER_DISTANCE; dz <= RENDER_DISTANCE; dz++) {
                     load_chunk(player_chunk_x + dx, player_chunk_z + dz);
                 }
             }
 
             for (auto chunk : world->loaded_chunks()) {
-                if (abs(chunk->cx - player_chunk_x) > radius || abs(chunk->cz - player_chunk_z) > radius) {
-                    std::unique_ptr<ChunkMesh> stolen = std::move(chunk->mesh);
-                    if (stolen) {
-                        ChunkMesh* released = stolen.release();
-                        context.frame().addCleanupAction([=]() {
-                            delete released;
-                        });
-                    }
+                if (abs(chunk->cx - player_chunk_x) > RENDER_DISTANCE || abs(chunk->cz - player_chunk_z) > RENDER_DISTANCE) {
                     world->unload_chunk(chunk);
                     continue;
                 }
 
-                auto& mesh = chunk->mesh;
-                if (!mesh || mesh->num_verts == 0)
+                auto mesh_lock = chunk->mesh.lock_mut();
+                auto& mesh_container = *mesh_lock;
+                if (!mesh_container.mesh) {
+                    if (mesh_container.task_spawned)
+                        continue;
+
+                    bool all_neighbours_loaded = true;
+                    ChunkNeighbors n = {};
+                    for (int dx = -1; dx < 2; dx++) {
+                        for (int dz = -1; dz < 2; dz++) {
+                            int nx = chunk->cx + dx;
+                            int nz = chunk->cz + dz;
+
+                            auto neighborChunk = world->get_loaded_chunk(nx, nz);
+                            if (neighborChunk)
+                                n.neighbours[dx + 1][dz + 1] = neighborChunk;
+                            else
+                                all_neighbours_loaded = false;
+                        }
+                    }
+                    if (all_neighbours_loaded) {
+                        mesh_container.task_spawned = true;
+                        tp.schedule([n, chunk = chunk, this]() {
+                            auto nn = n;
+                            auto mesh = std::make_shared<ChunkMesh>(this->device, this->device_mutex, nn);
+                            auto mesh_lock = chunk->mesh.lock_mut();
+                            mesh_lock->mesh = mesh;
+                            mesh_lock->task_spawned = false;
+                        });
+                    }
+                    continue;
+                }
+                auto mesh = mesh_container.mesh;
+                if (mesh->num_verts == 0)
                     continue;
 
                 push_constants.chunk_position = { chunk->cx, 0, chunk->cz };
@@ -345,6 +360,10 @@ void GameMesh::renderFrame() {
 
                 assert(mesh->num_verts > 0);
                 vkCmdDraw(cmdbuf, mesh->num_verts, 1, 0, 0);
+
+                context.frame().addCleanupAction([=, mesh = mesh]() {
+
+                });
             }
         });
 

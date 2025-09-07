@@ -17,7 +17,7 @@ struct ChunkNeighbors {
 
 struct ChunkMesh {
     std::unique_ptr<imr::Buffer> buf;
-    size_t num_verts;
+    size_t num_verts = 0;
 
     ChunkMesh(imr::Device&, std::mutex& device_mutex, ChunkNeighbors& n);
 

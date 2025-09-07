@@ -1,6 +1,6 @@
 #include "world.h"
 
-#include <cassert>
+#include <iostream>
 
 World::World(const char* filename) {
     allocator = enkl_get_malloc_free_allocator();
@@ -9,7 +9,7 @@ World::World(const char* filename) {
 
 World::~World() {
     for (auto& c : loaded_chunks()) {
-        unload_chunk(c.get());
+        unload_chunk(c);
     }
     while (true) {
         auto locked = regions.lock();
@@ -104,7 +104,7 @@ void World::load_chunk(int cx, int cz) {
     }
 }
 
-void World::unload_chunk(Chunk* chunk) {
+void World::unload_chunk(std::shared_ptr<Chunk> chunk) {
     Int2 pos = { chunk->cx, chunk->cz };
     auto held_guard = held_chunks.lock_mut();
     held_guard->erase(pos);
@@ -140,7 +140,7 @@ Chunk* Region::get_chunk(unsigned int rcx, unsigned int rcz) {
     assert(rcx < 32 && rcz < 32);
     auto found = chunks.find({(int) rcx, (int) rcz});
     if (found != chunks.end())
-        return found->second;
+        return found->second.get();
     return nullptr;
 }
 
@@ -149,7 +149,7 @@ Chunk::Chunk(Region& region, int cx, int cz) : region(region), cx(cx), cz(cz) {
     unsigned rcz = cz & 0x1f;
     Int2 pos = {(int)rcx, (int)rcz};
     //assert(region.chunks[pos] = nullptr);
-    region.chunks[pos] = this;
+    region.chunks[pos] = std::unique_ptr<Chunk>(this);
     //printf("! %d %d\n", cx, cz);
     if (region.enkl_region) {
         enkl_chunk = cunk_open_mcchunk(region.enkl_region, rcx, rcz);
@@ -161,6 +161,7 @@ Chunk::Chunk(Region& region, int cx, int cz) : region(region), cx(cx), cz(cz) {
 }
 
 Chunk::~Chunk() {
+    std::cout << "Unloading chunk: (" << this->cx << ", " << this->cz << ")\n";
     enkl_destroy_chunk_data(&data);
     if (enkl_chunk)
         enkl_close_chunk(enkl_chunk);

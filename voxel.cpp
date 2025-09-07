@@ -154,21 +154,20 @@ ChunkVoxels::ChunkVoxels(imr::Device& device,
                          bool greedyMeshing,
                          std::mutex& deviceMutex)
 {
-    std::vector<uint8_t> voxel_buffer;
     ChunkNeighborsUnsafe unsafe{};
     for (size_t x = 0; x < 3; x++)
         for (size_t z = 0; z < 3; z++)
             unsafe.neighbours[x][z] = &neighbors.neighbours[x][z].get()->data;
 
     if (greedyMeshing)
-        greedy_chunk_voxels(unsafe.neighbours[1][1], chunkPos, unsafe, voxel_buffer, &num_voxels);
+        greedy_chunk_voxels(unsafe.neighbours[1][1], chunkPos, unsafe, cpu_buffer, &num_voxels);
     else
-        chunk_voxels(unsafe.neighbours[1][1], chunkPos, unsafe, voxel_buffer, &num_voxels);
+        chunk_voxels(unsafe.neighbours[1][1], chunkPos, unsafe, cpu_buffer, &num_voxels);
 
-    if (num_voxels == 0 || voxel_buffer.empty())
+    if (num_voxels == 0 || cpu_buffer.empty())
         return;
 
-    size_t voxel_buffer_size = voxel_buffer.size() * sizeof(uint8_t);
+    size_t voxel_buffer_size = cpu_buffer.size() * sizeof(uint8_t);
 
     std::lock_guard<std::mutex> lock(deviceMutex);
     voxel_buf = std::make_unique<imr::Buffer>(
@@ -176,6 +175,5 @@ ChunkVoxels::ChunkVoxels(imr::Device& device,
         voxel_buffer_size,
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
     );
-    voxel_buf->uploadDataSync(0, voxel_buffer_size, voxel_buffer.data());
+    voxel_buf->uploadDataSync(0, voxel_buffer_size, cpu_buffer.data());
 }
-

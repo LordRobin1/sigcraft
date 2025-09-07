@@ -8,7 +8,7 @@
 #include "shaders.h"
 #include "imr/util.h"
 
-constexpr size_t RENDER_DISTANCE = 16;
+constexpr int RENDER_DISTANCE = 16;
 using KeyCallback = void(*)(GLFWwindow*, int, int, int, int);
 
 struct Game {
@@ -29,9 +29,11 @@ protected:
     bool reload_shaders = false;
     uint64_t prev_frame = imr_get_time_nano();
     float delta = 0;
+    std::mutex& device_mutex;
+    ThreadPool& tp;
 
-    Game(imr::Device& device, GLFWwindow* window, imr::Swapchain& swapchain, Shaders shaders, World* world, Camera& camera)
-        : device(device), window(window), swapchain(swapchain), shaders(std::move(shaders)), world(world), camera(camera)
+    Game(imr::Device& device, GLFWwindow* window, imr::Swapchain& swapchain, Shaders shaders, World* world, Camera& camera, std::mutex& device_mutex, ThreadPool& tp)
+        : device(device), window(window), swapchain(swapchain), shaders(std::move(shaders)), world(world), camera(camera), device_mutex(device_mutex), tp(tp)
     {}
 
 public:
@@ -57,7 +59,7 @@ private:
     } push_constants;
 
 public:
-    GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &swapchain, World *world, Camera &camera, bool greedyVoxels);
+    GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &swapchain, World *world, Camera &camera, bool greedyVoxels, std::mutex& device_mutex, ThreadPool& tp);
     void renderFrame() override;
     bool greedyVoxels;
 };
@@ -71,7 +73,7 @@ private:
     } push_constants;
 
 public:
-    GameMesh(imr::Device& device, GLFWwindow* window, imr::Swapchain& swapchain, World* world, Camera& camera);
+    GameMesh(imr::Device& device, GLFWwindow* window, imr::Swapchain& swapchain, World* world, Camera& camera, std::mutex& device_mutex, ThreadPool& tp);
     void renderFrame() override;
 };
 

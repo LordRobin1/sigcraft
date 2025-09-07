@@ -48,18 +48,18 @@ struct Chunk {
     int cx, cz;
     McChunk* enkl_chunk = nullptr;
     ChunkData data = {};
-    std::unique_ptr<ChunkVoxels> voxels;
-    std::unique_ptr<ChunkMesh> mesh;
+
     struct VoxelContainer {
         std::shared_ptr<ChunkVoxels> voxels;
         bool task_spawned = false;
     };
     Mutex<VoxelContainer> voxels;
+
     struct MeshContainer {
-        std::shared_ptr<ChunkVoxels> mesh;
+        std::shared_ptr<ChunkMesh> mesh;
         bool task_spawned = false;
     };
-    Mutex<VoxelContainer> mesh;
+    Mutex<MeshContainer> mesh;
 
     Chunk(Region&, int x, int z);
     Chunk(const Chunk&) = delete;
@@ -101,7 +101,7 @@ struct World {
     ~World();
 
     void load_chunk(int chunk_x, int chunk_z);
-    void unload_chunk(Chunk*);
+    void unload_chunk(std::shared_ptr<Chunk> chunk);
     std::shared_ptr<Chunk> get_loaded_chunk(int x, int z);
     std::vector<std::shared_ptr<Chunk>> loaded_chunks();
 private:

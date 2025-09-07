@@ -40,6 +40,7 @@ struct GreedyVoxel {
 
 
 struct ChunkVoxels {
+    std::vector<uint8_t> cpu_buffer;
     std::unique_ptr<imr::Buffer> voxel_buf;
     size_t num_voxels = 0;
 
@@ -47,7 +48,7 @@ struct ChunkVoxels {
         imr::Device& device,
         const ChunkNeighbors& neighbors,
         const ivec2& chunkPos,
-        const bool greedyMeshing,
+        const bool greedyVoxels,
         std::mutex& deviceMutex
     );
 
