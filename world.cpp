@@ -155,7 +155,7 @@ Chunk::Chunk(Region& region, int cx, int cz) : region(region), cx(cx), cz(cz) {
     unsigned rcz = cz & 0x1f;
     Int2 pos = {(int)rcx, (int)rcz};
     //assert(region.chunks[pos] = nullptr);
-    region.chunks[pos] = std::unique_ptr<Chunk>(this);
+    //region.chunks[pos] = std::unique_ptr<Chunk>(this);
     //printf("! %d %d\n", cx, cz);
     if (region.enkl_region) {
         enkl_chunk = cunk_open_mcchunk(region.enkl_region, rcx, rcz);
