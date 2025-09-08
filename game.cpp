@@ -122,8 +122,9 @@ void GameVoxels::renderFrame() {
 
         context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]() {
             auto load_chunk = [&](const int cx, const int cz) {
-                auto loaded = world->get_loaded_chunk(cx, cz);
-                if (!loaded) {
+                auto chunk_state = world->get_loaded_chunk(cx, cz);
+                if (!chunk_state.chunk && !chunk_state.scheduled) {
+                    // chunk is neither loaded nor scheduled to load
                     std::cout << "Loading chunk: (" << cx << ", " << cz << ")" << std::endl;
                     world->load_chunk(cx, cz);
                 }
@@ -162,8 +163,8 @@ void GameVoxels::renderFrame() {
                             const int nz = chunk->cz + dz;
 
                             auto neighborChunk = world->get_loaded_chunk(nx, nz);
-                            if (neighborChunk)
-                                n.neighbours[dx + 1][dz + 1] = neighborChunk;
+                            if (neighborChunk.chunk)
+                                n.neighbours[dx + 1][dz + 1] = neighborChunk.chunk;
                             else
                                 all_neighbours_loaded = false;
                         }
@@ -297,9 +298,12 @@ void GameMesh::renderFrame() {
             push_constants.matrix = m;
 
             auto load_chunk = [&](int cx, int cz) {
-                auto loaded = world->get_loaded_chunk(cx, cz);
-                if (!loaded)
+                auto chunk_state = world->get_loaded_chunk(cx, cz);
+                if (!chunk_state.chunk && !chunk_state.scheduled) {
+                    // chunk is neither loaded nor scheduled to load
+                    std::cout << "Loading chunk: (" << cx << ", " << cz << ")" << std::endl;
                     world->load_chunk(cx, cz);
+                }
             };
 
             int player_chunk_x = camera.position.x / 16;
@@ -331,8 +335,8 @@ void GameMesh::renderFrame() {
                             int nz = chunk->cz + dz;
 
                             auto neighborChunk = world->get_loaded_chunk(nx, nz);
-                            if (neighborChunk)
-                                n.neighbours[dx + 1][dz + 1] = neighborChunk;
+                            if (neighborChunk.chunk)
+                                n.neighbours[dx + 1][dz + 1] = neighborChunk.chunk;
                             else
                                 all_neighbours_loaded = false;
                         }

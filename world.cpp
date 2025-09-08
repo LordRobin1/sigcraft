@@ -71,30 +71,35 @@ static std::tuple<int, int> to_region_coordinates(int cx, int cz) {
     return { rx, rz };
 }
 
-std::shared_ptr<Chunk> World::get_loaded_chunk(int cx, int cz) {
+World::ChunkState World::get_loaded_chunk(int cx, int cz) {
     Int2 pos = { cx, cz };
     auto held_chunks_guard = held_chunks.lock();
     auto found = held_chunks_guard->find(pos);
     if (found != held_chunks_guard->end()) {
         auto& handle = found->second;
         auto chunk_guard = handle->handle.lock();
-        if (*chunk_guard)
-            return *chunk_guard;
+        if (*chunk_guard) {
+            return { *chunk_guard, false};
+        }
+        return { nullptr, true };
     }
+    if ( cx == 0 && cz == 0 )
+        std::cout << "Chunk (" << cx << ", " << cz << ") not loaded\n";
     //auto [rx, rz] = to_region_coordinates(cx, cz);
     //auto guard = regions.lock();
     //auto found = get_loaded_region(guard, rx, rz);
     //if (found)
     //    return found->get_chunk(cx & 0x1f, cz & 0x1f);
-    return nullptr;
+    return { nullptr, false };
 }
 
 void World::load_chunk(int cx, int cz) {
     auto [rx, rz] = to_region_coordinates(cx, cz);
     auto held_guard = held_chunks.lock_mut();
-    if (held_guard->find(Int2(cx, cz)) == held_guard->end()) {
+    if (!held_guard->contains(Int2(cx, cz))) {
         auto handle = (*held_guard)[Int2(cx, cz)] = std::make_shared<ChunkHandle>();
         tp.schedule([=, this] {
+            std::cout << "Started chunk loading coroutine for (" << cx << ", " << cz << ")" << std::endl;
             auto regions_guard = regions.lock_mut();
             Region* r = get_loaded_region(regions_guard, rx, rz);
             if (!r)
@@ -102,6 +107,7 @@ void World::load_chunk(int cx, int cz) {
             *handle->handle.lock_mut() = std::make_shared<Chunk>(*r, cx, cz);
         });
     }
+    std::cout << "Scheduled chunk load: (" << cx << ", " << cz << ")\n";
 }
 
 void World::unload_chunk(std::shared_ptr<Chunk> chunk) {

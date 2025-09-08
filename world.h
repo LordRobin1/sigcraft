@@ -102,7 +102,13 @@ struct World {
 
     void load_chunk(int chunk_x, int chunk_z);
     void unload_chunk(std::shared_ptr<Chunk> chunk);
-    std::shared_ptr<Chunk> get_loaded_chunk(int x, int z);
+
+    struct ChunkState {
+        std::shared_ptr<Chunk> chunk;
+        bool scheduled;
+    };
+    // Returns the chunk if loaded and whether it is scheduled to load.
+    ChunkState get_loaded_chunk(int x, int z);
     std::vector<std::shared_ptr<Chunk>> loaded_chunks();
 private:
     ThreadPool tp { 1 };
