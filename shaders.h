@@ -79,15 +79,15 @@ struct MeshShaders : Shaders {
             d,
             swapchain,
             { "basic.vert.spv", "basic.frag.spv" },
-            (VkVertexInputBindingDescription[]) {
+            std::array<VkVertexInputBindingDescription,1>{{
                 {
                     .binding = 0,
                     .stride = sizeof(ChunkMesh::Vertex),
                     .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
                 },
-            },
+            }}.data(),
             1,
-            (VkVertexInputAttributeDescription[]) {
+            std::array<VkVertexInputAttributeDescription,3>{{
                 {
                     .location = 0,
                     .binding = 0,
@@ -106,11 +106,12 @@ struct MeshShaders : Shaders {
                     .format = VK_FORMAT_R8G8B8_UNORM,
                     .offset = offsetof(ChunkMesh::Vertex, br),
                 },
-            },
+            }}.data(),
             3
         )
     {}
 
 };
+
 
 #endif //SHADERS_H
