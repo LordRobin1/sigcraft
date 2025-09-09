@@ -125,7 +125,6 @@ void GameVoxels::renderFrame() {
                 auto chunk_state = world->get_loaded_chunk(cx, cz);
                 if (!chunk_state.chunk && !chunk_state.scheduled) {
                     // chunk is neither loaded nor scheduled to load
-                    std::cout << "Loading chunk: (" << cx << ", " << cz << ")" << std::endl;
                     world->load_chunk(cx, cz);
                 }
             };
@@ -301,7 +300,6 @@ void GameMesh::renderFrame() {
                 auto chunk_state = world->get_loaded_chunk(cx, cz);
                 if (!chunk_state.chunk && !chunk_state.scheduled) {
                     // chunk is neither loaded nor scheduled to load
-                    std::cout << "Loading chunk: (" << cx << ", " << cz << ")" << std::endl;
                     world->load_chunk(cx, cz);
                 }
             };

@@ -83,8 +83,6 @@ World::ChunkState World::get_loaded_chunk(int cx, int cz) {
         }
         return { nullptr, true };
     }
-    if ( cx == 0 && cz == 0 )
-        std::cout << "Chunk (" << cx << ", " << cz << ") not loaded\n";
     //auto [rx, rz] = to_region_coordinates(cx, cz);
     //auto guard = regions.lock();
     //auto found = get_loaded_region(guard, rx, rz);
@@ -99,7 +97,6 @@ void World::load_chunk(int cx, int cz) {
     if (!held_guard->contains(Int2(cx, cz))) {
         auto handle = (*held_guard)[Int2(cx, cz)] = std::make_shared<ChunkHandle>();
         tp.schedule([=, this] {
-            std::cout << "Started chunk loading coroutine for (" << cx << ", " << cz << ")" << std::endl;
             auto regions_guard = regions.lock_mut();
             Region* r = get_loaded_region(regions_guard, rx, rz);
             if (!r)
@@ -107,7 +104,6 @@ void World::load_chunk(int cx, int cz) {
             *handle->handle.lock_mut() = std::make_shared<Chunk>(*r, cx, cz);
         });
     }
-    std::cout << "Scheduled chunk load: (" << cx << ", " << cz << ")\n";
 }
 
 void World::unload_chunk(std::shared_ptr<Chunk> chunk) {
@@ -167,7 +163,6 @@ Chunk::Chunk(Region& region, int cx, int cz) : region(region), cx(cx), cz(cz) {
 }
 
 Chunk::~Chunk() {
-    std::cout << "Unloading chunk: (" << this->cx << ", " << this->cz << ")\n";
     enkl_destroy_chunk_data(&data);
     if (enkl_chunk)
         enkl_close_chunk(enkl_chunk);
