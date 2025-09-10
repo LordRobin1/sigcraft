@@ -14,6 +14,15 @@ struct Voxel { ivec3 position; vec3 color; };
 layout(scalar, buffer_reference) readonly buffer VoxelBuffer {
     Voxel voxels[];
 };
+
+layout(set = 0, binding = 0) uniform UBO {
+    mat4 proj_view_mat;
+    mat4 inverse_proj_view_matrix;
+    vec3 camera_position;
+    VoxelBuffer voxel_buffer;
+    vec2 screen_size;
+} ubo;
+
 layout(scalar, push_constant) uniform T {
     mat4 proj_view_mat;
     mat4 inverse_proj_view_matrix;
@@ -201,20 +210,20 @@ void main() {
     const float invRadius = 2;
     const float CLIPPING_THRESHOLD = 200.0;
 
-    Voxel voxel = push_constants.voxel_buffer.voxels[gl_InstanceIndex];
+    Voxel voxel = ubo.voxel_buffer.voxels[gl_InstanceIndex];
     vec2 corner = fullscreenVerts[gl_VertexIndex];
 
-    vec4 position = push_constants.proj_view_mat * vec4(voxel.position, 1.0);
+    vec4 position = ubo.proj_view_mat * vec4(voxel.position, 1.0);
     float pointSize;
-    quadricProj(vec3(voxel.position), push_constants.proj_view_mat, push_constants.screen_size * 0.5, position, pointSize);
+    quadricProj(vec3(voxel.position), ubo.proj_view_mat, ubo.screen_size * 0.5, position, pointSize);
 
-    vec2 screenOffset = corner * (pointSize / push_constants.screen_size);
+    vec2 screenOffset = corner * (pointSize / ubo.screen_size);
     position.xy += screenOffset * position.w;
 
     // check if we need to compute the AABB greedily
     if (pointSize * 2.0 > CLIPPING_THRESHOLD) {
         vec2 ndcMin, ndcMax;
-        computeClippedAABB(vec3(voxel.position), vec3(radius), push_constants.proj_view_mat, ndcMin, ndcMax);
+        computeClippedAABB(vec3(voxel.position), vec3(radius), ubo.proj_view_mat, ndcMin, ndcMax);
 
         // If completely clipped, return early
         // This should only be the case, if we do chunk-only/no frustum culling, so some voxels might not be visible
@@ -234,8 +243,8 @@ void main() {
 
     color = voxel.color;
     cameraPosition = push_constants.camera_position;
-    inverseProjViewMatrix = push_constants.inverse_proj_view_matrix;
-    screenSize = push_constants.screen_size;
+    inverseProjViewMatrix = ubo.inverse_proj_view_matrix;
+    screenSize = ubo.screen_size;
     box = Box(voxel.position, vec3(radius), vec3(invRadius), mat3(1.0));
     quad = (corner * 0.5) + 0.5;
 

@@ -55,6 +55,24 @@ private:
         VkDeviceAddress voxel_buffer;
         vec2 screen_size;
     } push_constants;
+    struct UBO {
+        struct {
+            mat4 projection;
+            mat4 inverse_projection;
+            vec3 camera_position;
+            VkDeviceAddress voxel_buffer;
+            vec2 screen_size;
+        } data = {};
+        imr::Buffer buffer;
+
+        explicit UBO(imr::Device &device)
+            : buffer(imr::Buffer(device, sizeof(data), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
+               {}
+        void update(imr::Device& d) {
+            buffer.ubo_upload(&data, sizeof(data));
+        }
+    } ubo;
 
 public:
     GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &swapchain, World *world, Camera &camera, bool greedyVoxels);
