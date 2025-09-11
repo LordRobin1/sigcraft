@@ -14,12 +14,17 @@ struct GreedyVoxel { ivec3 start; ivec3 end; vec3 color; };
 layout(scalar, buffer_reference) readonly buffer VoxelBuffer {
     GreedyVoxel voxels[];
 };
-layout(scalar, push_constant) uniform T {
+
+layout(scalar, buffer_reference) readonly buffer UBO {
     mat4 proj_view_mat;
     mat4 inverse_proj_view_matrix;
     vec3 camera_position;
-    VoxelBuffer voxel_buffer;
     vec2 screen_size;
+};
+
+layout(scalar, push_constant) uniform T {
+    VoxelBuffer voxel_buffer;
+    UBO ubo;
 } push_constants;
 
 layout(location = 0) out Box box;
@@ -197,17 +202,18 @@ out vec2 ndcMax
 void main() {
     const float CLIPPING_THRESHOLD = 200.0;
 
+    UBO ubo = push_constants.ubo;
     GreedyVoxel voxel = push_constants.voxel_buffer.voxels[gl_InstanceIndex];
     vec2 corner = fullscreenVerts[gl_VertexIndex];
 
     vec3 center = (vec3(voxel.start) + vec3(voxel.end)) / 2;
-    vec4 position = push_constants.proj_view_mat * vec4(center, 1.0);
+    vec4 position = ubo.proj_view_mat * vec4(center, 1.0);
     float pointSize;
     vec3 halfSize = abs((vec3(voxel.start) - vec3(voxel.end)) / 2);
     float sphereRadius = length(halfSize);
-    quadricProj(center, sphereRadius, push_constants.proj_view_mat, push_constants.screen_size * 0.5, position, pointSize);
+    quadricProj(center, sphereRadius, ubo.proj_view_mat, ubo.screen_size * 0.5, position, pointSize);
 
-    vec2 screenOffset = corner * (pointSize / push_constants.screen_size);
+    vec2 screenOffset = corner * (pointSize / ubo.screen_size);
     position.xy += screenOffset * position.w;
 
     vec3 invHalf = vec3(
@@ -219,7 +225,7 @@ void main() {
     // check if we need to compute the AABB greedily
     if (pointSize * 2.0 > CLIPPING_THRESHOLD) {
         vec2 ndcMin, ndcMax;
-        computeClippedAABB(center, halfSize, push_constants.proj_view_mat, ndcMin, ndcMax);
+        computeClippedAABB(center, halfSize, ubo.proj_view_mat, ndcMin, ndcMax);
 
         // If completely clipped, return early
         // This should only be the case, if we do chunk-only/no frustum culling, so some voxels might not be visible
@@ -239,9 +245,9 @@ void main() {
 
     box = Box(center, halfSize, invHalf, mat3(1.0));
     color = voxel.color;
-    cameraPosition = push_constants.camera_position;
-    inverseProjViewMatrix = push_constants.inverse_proj_view_matrix;
-    screenSize = push_constants.screen_size;
+    cameraPosition = ubo.camera_position;
+    inverseProjViewMatrix = ubo.inverse_proj_view_matrix;
+    screenSize = ubo.screen_size;
     quad = (corner * 0.5) + 0.5;
 
     float stochasticCoverage = pointSize * pointSize;

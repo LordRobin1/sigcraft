@@ -118,22 +118,20 @@ void GameVoxels::renderFrame() {
         auto& pipeline = shaders.pipeline;
         vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline());
 
-        push_constants.matrix = m;
-        push_constants.inverse_matrix = invert_mat4(m);
-        push_constants.camera_position = camera.position;
-        push_constants.screen_size = vec2(context.image().size().width, context.image().size().height);
-
         ubo.data.projection = m;
-        ubo.data.inverse_projection = push_constants.inverse_matrix;
+        ubo.data.inverse_projection = invert_mat4(m);
         ubo.data.camera_position = camera.position;
-        ubo.data.screen_size = push_constants.screen_size;
+        ubo.data.screen_size = vec2(context.image().size().width, context.image().size().height);
+        ubo.update(device);
 
-        auto bind_helper = pipeline->create_bind_helper();
-        bind_helper->set_uniform_buffer(device, 0, 0, ubo.buffer, 0, sizeof(ubo.data));
-        auto& dev = device;
-        context.addCleanupAction([=] {
-            delete bind_helper;
-        });
+        push_constants.ubo = ubo.buffer.device_address();
+
+        // auto bind_helper = pipeline->create_bind_helper();
+        // bind_helper->set_uniform_buffer(device, 0, 0, ubo.buffer, 0, sizeof(ubo.data));
+        // auto& dev = device;
+        // context.addCleanupAction([=] {
+        //     delete bind_helper;
+        // });
 
         context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]{
             auto load_chunk = [&](const int cx, const int cz) {
@@ -193,8 +191,6 @@ void GameVoxels::renderFrame() {
                  vkCmdPushConstants(
                      cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT,
                      0, sizeof(push_constants), &push_constants);
-                 ubo.data.voxel_buffer = voxels->voxel_buffer_device_address(greedyVoxels);
-                 ubo.update(device);
                  vkCmdDraw(cmdbuf, 6, voxels->num_voxels, 0, 0);
              }
         });

@@ -15,20 +15,16 @@ layout(scalar, buffer_reference) readonly buffer VoxelBuffer {
     Voxel voxels[];
 };
 
-layout(set = 0, binding = 0) uniform UBO {
+layout(scalar, buffer_reference) readonly buffer UBO {
     mat4 proj_view_mat;
     mat4 inverse_proj_view_matrix;
     vec3 camera_position;
-    VoxelBuffer voxel_buffer;
     vec2 screen_size;
-} ubo;
+};
 
 layout(scalar, push_constant) uniform T {
-    mat4 proj_view_mat;
-    mat4 inverse_proj_view_matrix;
-    vec3 camera_position;
     VoxelBuffer voxel_buffer;
-    vec2 screen_size;
+    UBO ubo;
 } push_constants;
 
 layout(location = 0) out Box box;
@@ -210,7 +206,8 @@ void main() {
     const float invRadius = 2;
     const float CLIPPING_THRESHOLD = 200.0;
 
-    Voxel voxel = ubo.voxel_buffer.voxels[gl_InstanceIndex];
+    UBO ubo = push_constants.ubo;
+    Voxel voxel = push_constants.voxel_buffer.voxels[gl_InstanceIndex];
     vec2 corner = fullscreenVerts[gl_VertexIndex];
 
     vec4 position = ubo.proj_view_mat * vec4(voxel.position, 1.0);
@@ -242,7 +239,7 @@ void main() {
     }
 
     color = voxel.color;
-    cameraPosition = push_constants.camera_position;
+    cameraPosition = ubo.camera_position;
     inverseProjViewMatrix = ubo.inverse_proj_view_matrix;
     screenSize = ubo.screen_size;
     box = Box(voxel.position, vec3(radius), vec3(invRadius), mat3(1.0));
