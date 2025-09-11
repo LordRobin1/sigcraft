@@ -7,6 +7,7 @@
 #include "world.h"
 #include "shaders.h"
 #include "imr/util.h"
+#include "texture.hpp"
 
 constexpr size_t RENDER_DISTANCE = 16;
 using KeyCallback = void(*)(GLFWwindow*, int, int, int, int);
@@ -18,7 +19,9 @@ protected:
     GLFWwindow* window;
     imr::Swapchain& swapchain;
     std::unique_ptr<imr::Image> depthBuffer;
+    Sampler sampler{device};
     Shaders shaders;
+    TextureManager textureManager{device, *shaders.pipeline, sampler};
     World* world;
     Camera& camera;
     CameraFreelookState camera_state = {

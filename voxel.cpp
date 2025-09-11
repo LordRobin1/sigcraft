@@ -8,7 +8,14 @@ extern "C" {
 
 inline int toWorldY(const int section, const int y) { return y + section * CUNK_CHUNK_SIZE; }
 
-void chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighbors& neighbours, std::vector<uint8_t>& voxel_buffer,  size_t* num_voxels) {
+void chunk_voxels(
+    const ChunkData* chunk,
+    const ivec2& chunkPos,
+    ChunkNeighbors& neighbours,
+    std::vector<uint8_t>& voxel_buffer,
+    size_t* num_voxels,
+    const std::unordered_map<BlockId, uint32_t>& idToIdx
+) {
     for (int section = 0; section < CUNK_CHUNK_SECTIONS_COUNT; section++) {
         for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
             for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
@@ -44,7 +51,9 @@ void chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighbors&
                         v.color.x = block_colors[block_data].r;
                         v.color.y = block_colors[block_data].g;
                         v.color.z = block_colors[block_data].b;
+                        v.textureIndex = idToIdx.contains(static_cast<BlockId>(block_data)) ? idToIdx.at(static_cast<BlockId>(block_data)) : idToIdx.at(BlockUnknown);
                         v.copy_to(voxel_buffer);
+
                         *num_voxels += 1;
                     }
                 }
@@ -61,7 +70,8 @@ void greedyMeshSlice(
     const int worldY,
     ChunkNeighbors& neighbors,
     std::vector<uint8_t>& voxelBuffer,
-    size_t* numVoxels
+    size_t* numVoxels,
+    const std::unordered_map<BlockId, uint32_t>& idToIdx
 ) {
     BitMask& mask = maskArray[y];
     for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
@@ -121,7 +131,10 @@ void greedyMeshSlice(
             gv.color.y = block_colors[mask.type].g;
             gv.color.z = block_colors[mask.type].b;
 
+            gv.textureIndex = idToIdx.contains(mask.type) ? idToIdx.at(mask.type) : idToIdx.at(BlockUnknown);
+
             gv.copy_to(voxelBuffer);
+
             *numVoxels += 1;
 
             // clear the used bits
@@ -130,7 +143,14 @@ void greedyMeshSlice(
     }
 }
 
-void greedy_chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNeighbors& neighbours, std::vector<uint8_t>& voxel_buffer,  size_t* num_voxels) {
+void greedy_chunk_voxels(
+    const ChunkData* chunk,
+    const ivec2& chunkPos,
+    ChunkNeighbors& neighbours,
+    std::vector<uint8_t>& voxel_buffer,
+    size_t* num_voxels,
+    const std::unordered_map<BlockId, uint32_t>& idToIdx
+) {
     std::array<BitMask, CUNK_CHUNK_SIZE> maskArray;
     // generate a BitMask for each block type, and for each vertical slice
     for (int i = 1; i < BlockCount; i++) {
@@ -139,22 +159,27 @@ void greedy_chunk_voxels(const ChunkData* chunk, const ivec2& chunkPos, ChunkNei
                 maskArray[y] = BitMask(chunk, neighbours, toWorldY(section, y), static_cast<BlockId>(i));
             }
             for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
-                greedyMeshSlice(maskArray, y, chunk, chunkPos, toWorldY(section, y), neighbours, voxel_buffer, num_voxels);
+                greedyMeshSlice(maskArray, y, chunk, chunkPos, toWorldY(section, y), neighbours, voxel_buffer, num_voxels, idToIdx);
             }
         }
     }
 }
 
-
-ChunkVoxels::ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors, const ivec2& chunkPos, const bool greedyMeshing) {
+ChunkVoxels::ChunkVoxels(
+    imr::Device& device,
+    ChunkNeighbors& neighbors,
+    const ivec2& chunkPos,
+    const bool greedyMeshing,
+    const std::unordered_map<BlockId, uint32_t>& idToIdx
+) {
     std::vector<uint8_t> voxel_buffer;
     num_voxels = 0;
     if (greedyMeshing) {
-        greedy_chunk_voxels(neighbors.neighbours[1][1], chunkPos, neighbors, voxel_buffer, &num_voxels);
+        greedy_chunk_voxels(neighbors.neighbours[1][1], chunkPos, neighbors, voxel_buffer, &num_voxels,  idToIdx);
     } else {
-        chunk_voxels(neighbors.neighbours[1][1], chunkPos, neighbors, voxel_buffer, &num_voxels);
+        chunk_voxels(neighbors.neighbours[1][1], chunkPos, neighbors, voxel_buffer, &num_voxels, idToIdx);
     }
-    size_t voxel_buffer_size = voxel_buffer.size();
+    const size_t voxel_buffer_size = voxel_buffer.size();
     if (voxel_buffer_size > 0) {
         voxel_buf = std::make_unique<imr::Buffer>(device, voxel_buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
         voxel_buf->uploadDataSync(0, voxel_buffer_size, voxel_buffer.data());

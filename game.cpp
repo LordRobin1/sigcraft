@@ -24,7 +24,7 @@ GameVoxels::GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &
             game->greedyVoxels = !game->greedyVoxels;
             game->reload_shaders = true;
             game->toggleGreedy = true;
-        } else if (key == GLFW_KEY_F12 && action == GLFW_PRESS) {
+        } else if (key == GLFW_KEY_F10 && action == GLFW_PRESS) {
             game->toggleMode = true;
         }
     });
@@ -145,7 +145,7 @@ void GameVoxels::renderFrame() {
                         }
                     }
                     if (all_neighbours_loaded)
-                        loaded->voxels = std::make_unique<ChunkVoxels>(device, n, ivec2{cx, cz}, greedyVoxels);
+                        loaded->voxels = std::make_unique<ChunkVoxels>(device, n, ivec2{cx, cz}, greedyVoxels, textureManager.m_idToIndex);
                 }
             };
 

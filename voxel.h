@@ -13,6 +13,7 @@ using namespace nasl;
 struct Voxel {
     ivec3 position;
     vec3 color;
+    uint32_t textureIndex;
     // mat4 orientation; // for later
 
     void copy_to(std::vector<uint8_t>& buf) const {
@@ -27,6 +28,7 @@ struct GreedyVoxel {
     ivec3 start;
     ivec3 end;
     vec3 color;
+    uint32_t textureIndex;
 
     void copy_to(std::vector<uint8_t>& buf) const {
         uint8_t tmp[sizeof(GreedyVoxel)];
@@ -41,7 +43,13 @@ struct ChunkVoxels {
     std::unique_ptr<imr::Buffer> voxel_buf;
     size_t num_voxels;
 
-    ChunkVoxels(imr::Device& device, ChunkNeighbors& neighbors, const ivec2& chunkPos, const bool greedyMeshing);
+    ChunkVoxels(
+        imr::Device& device,
+        ChunkNeighbors& neighbors,
+        const ivec2& chunkPos,
+        const bool greedyMeshing,
+        const std::unordered_map<BlockId, uint32_t>& idToIdx
+    );
 
     [[nodiscard]] VkDeviceAddress voxel_buffer_device_address(const bool greedyMeshing) const {
         return voxel_buf->device_address();

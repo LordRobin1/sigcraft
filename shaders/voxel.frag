@@ -19,8 +19,11 @@ layout(location = 6) in vec3 color;
 layout(location = 7) in vec3 cameraPosition;
 layout(location = 8) in vec2 screenSize;
 layout(location = 9) in mat4 inverseProjViewMatrix;
+layout(location = 14) flat in uint voxelTextureIndex;
 
 layout(location = 0) out vec4 colorOut;
+
+layout(set = 0, binding = 0) uniform sampler2DArray textures;
 
 float maxComponent(vec3 v) { return max (max(v.x, v.y), v.z); }
 
@@ -135,12 +138,22 @@ void main() {
 
 //    if (ourHitAABox(box.center, box.radius, rayOrigin, rayDirection, 1 / rayDirection))
     if (ourIntersectBoxCommon(box, ray, distance, normal, rayCanStartInBox, oriented, 1.0 / rayDirection)) {
-        // compute the color
-        colorOut = vec4(normal * 0.5 + vec3(0.5), 1.0);
-        colorOut = vec4(color * 0.8 + 0.2 * dot(normal, normalize(vec3(1.0, 0.5, 0.1))), 1.0);
+        vec3 intersectionPoint = rayOrigin + rayDirection * distance;
 
-        // magic numbers from `camera_get_view_mat4` in camera.cpp
-        // set depth value
+        vec3 localPos = (intersectionPoint - box.center) * box.invRadius;
+
+        vec2 uv;
+        if (abs(normal.x) > 0.9) {
+            uv = localPos.yz;
+        } else if (abs(normal.y) > 0.9) {
+            uv = localPos.xz;
+        } else {
+            uv = localPos.xy;
+        }
+        // uv = fract(uv);
+
+        colorOut = texture(textures, vec3(uv, voxelTextureIndex));
+
         const float near = 0.1;
         const float far = 1000.0;
         gl_FragDepth = clamp((distance - near) / (far - near), 0.0, 1.0);
