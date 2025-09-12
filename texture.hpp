@@ -55,6 +55,7 @@ public:
 private:
     // used to maintain ordering to ensure correct gpu upload
     std::vector<BlockId> m_blockOrder{};
+    std::vector<BlockId> m_liquidOrder{};
 
     /**
      * Holds raw block data for each axis of block.
@@ -76,5 +77,14 @@ private:
     };
 
     /// loads all files from given dir
-    TextureData loadTextureData(const std::string& dirPathStr);
+    TextureData loadTextureData(const std::string& dirPathStr, std::vector<BlockId>& order);
+
+    /// uploads texture data to gpu
+    void uploadTextureData(
+        const TextureData & texData,
+        std::unique_ptr<TextureArray>& texArray,
+        imr::Device& device,
+        imr::GraphicsPipeline& pipeline,
+                           const Sampler & sampler
+    );
 };

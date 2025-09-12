@@ -24,6 +24,8 @@ const std::unordered_map<std::string, BlockId> nameToId {
     {"lava", BlockLava},
     {"bedrock", BlockBedrock},
     {"sandstone", BlockSandStone},
+    {"water", BlockWater},
+    {"lava", BlockLava},
     {"unknown", BlockUnknown},
 };
 
@@ -53,20 +55,30 @@ Sampler::Sampler(const imr::Device& device) {
 }
 
 TextureManager::TextureManager(imr::Device &device, imr::GraphicsPipeline& pipeline, Sampler& sampler) {
-    // TODO: Add liquid support
-    TextureData blockData = loadTextureData(TEXTURE_DIR + BLOCKS);
+    TextureData blockData = loadTextureData(TEXTURE_DIR + BLOCKS, m_blockOrder);
+    // TextureData liquidData = loadTextureData(TEXTURE_DIR + LIQUID, m_liquidOrder);
 
+    uploadTextureData(blockData, m_blockTextures, device, pipeline, sampler);
+    // uploadTextureData(liquidData, m_liquidTextures, device, pipeline, sampler);
+}
+
+void TextureManager::uploadTextureData(
+    const TextureData &texData,
+    std::unique_ptr<TextureArray> &texArray,
+    imr::Device& device,
+    imr::GraphicsPipeline& pipeline,
+    const Sampler & sampler
+) {
     VkImageUsageFlagBits usage = static_cast<VkImageUsageFlagBits>(
         VK_IMAGE_USAGE_TRANSFER_DST_BIT |
         VK_IMAGE_USAGE_SAMPLED_BIT
     );
 
     VkExtent3D sizeVk{
-        static_cast<uint32_t>(blockData.width),
-        static_cast<uint32_t>(blockData.height),
+        static_cast<uint32_t>(texData.width),
+        static_cast<uint32_t>(texData.height),
         1
     };
-
 
     VkBufferImageCopy copyRegion = {};
     copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -77,7 +89,7 @@ TextureManager::TextureManager(imr::Device &device, imr::GraphicsPipeline& pipel
     copyRegion.bufferOffset = 0;
     copyRegion.imageOffset = {0, 0, 0};
 
-    const size_t singleImageSize = blockData.width * blockData.height * 4;
+    const size_t singleImageSize = texData.width * texData.height * 4;
     const uint32_t blockCount = static_cast<uint32_t>(m_blockOrder.size());
     const uint32_t layerCount = blockCount * TEXTURES_PER_BLOCK;
 
@@ -96,7 +108,7 @@ TextureManager::TextureManager(imr::Device &device, imr::GraphicsPipeline& pipel
 
     assert(m_blockTextures->textures->handle());
 
-    imr::Buffer stagingBuffer{
+    imr::Buffer stagingBuffer {
         device,
         singleImageSize * layerCount,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -105,7 +117,7 @@ TextureManager::TextureManager(imr::Device &device, imr::GraphicsPipeline& pipel
 
     for (const auto& id : m_blockOrder) {
         uint32_t idx = m_idToIndex[id];
-        auto &[side, top, bottom] = blockData.raw[id];
+        auto &[side, top, bottom] = texData.raw.at(id);
 
         assert(side && "Side texture must exist");
 
@@ -195,7 +207,10 @@ TextureManager::TextureManager(imr::Device &device, imr::GraphicsPipeline& pipel
     });
 }
 
-TextureManager::TextureData TextureManager::loadTextureData(const std::string& dirPathStr) {
+TextureManager::TextureData TextureManager::loadTextureData(
+    const std::string& dirPathStr,
+    std::vector<BlockId>& order
+) {
     TextureData textureData{};
     fs::path dirPath(dirPathStr);
     int width = 0, height = 0, channels = 0;
@@ -221,8 +236,8 @@ TextureManager::TextureData TextureManager::loadTextureData(const std::string& d
 
         if (!m_idToIndex.contains(id)) {
             m_idToIndex[id] = index;
-            m_blockOrder.push_back(id);
-            // nfo("Mapped {} to idx {}", name, index);
+            order.push_back(id);
+            nfo("Mapped {} to idx {}", name, index);
             index++;
         }
 
@@ -237,3 +252,4 @@ TextureManager::TextureData TextureManager::loadTextureData(const std::string& d
 
     return textureData;
 }
+
