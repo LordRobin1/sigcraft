@@ -42,11 +42,13 @@ void GameVoxels::renderFrame() {
         toggleGreedy = false;
     }
     if (reload_shaders) {
+        vkDeviceWaitIdle(device.device);
         const std::vector<std::string> shaderFiles = {
             greedyVoxels ? "greedyVoxel.vert.spv" : "voxel.vert.spv",
             fragmentShaders[debugShader]
         };
         shaders = VoxelShaders(device, swapchain, shaderFiles);
+        textureManager.onShaderReload(*shaders.pipeline);
         reload_shaders = false;
         std::cout << "Vertex shader: " << shaderFiles[0] << std::endl;
         std::cout << "Pixel shader: " << shaderFiles[1] << std::endl;
@@ -58,6 +60,8 @@ void GameVoxels::renderFrame() {
 
         auto& image = context.image();
         auto cmdbuf = context.cmdbuf();
+
+        textureManager.m_blockTextures->bindHelper->commit_frame(cmdbuf);
 
         if (!depthBuffer || depthBuffer->size().width != context.image().size().width || depthBuffer->size().height != context.image().size().height) {
             auto depthBufferFlags = static_cast<VkImageUsageFlagBits>(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
@@ -123,7 +127,6 @@ void GameVoxels::renderFrame() {
         push_constants.screen_size = vec2(context.image().size().width, context.image().size().height);
 
         context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]{
-            textureManager.m_blockTextures->bindHelper->commit_frame(cmdbuf);
 
             auto load_chunk = [&](const int cx, const int cz) {
                 Chunk* loaded = world->get_loaded_chunk(cx, cz);

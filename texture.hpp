@@ -46,6 +46,8 @@ public:
     TextureManager(imr::Device &device, imr::GraphicsPipeline &pipeline, Sampler &sampler);
     ~TextureManager() = default;
 
+    void onShaderReload(imr::GraphicsPipeline& pipeline) const;
+
     std::unique_ptr<TextureArray> m_blockTextures{};
     std::unique_ptr<TextureArray> m_liquidTextures{};
 

@@ -44,8 +44,8 @@ Sampler::Sampler(const imr::Device& device) {
         .magFilter = VK_FILTER_NEAREST, // when texel bigger than 1 pixel, pick nearest
         .minFilter= VK_FILTER_NEAREST, // when texel smaller pick nearest
         .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-        .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, // we want to tile when outside [0, 1]
-        .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT, // we want to tile when outside [0, 1]
+        .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
         .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
         .minLod = 0.0f, // no LOD for now...
         .maxLod = 0.0f,
@@ -252,4 +252,9 @@ TextureManager::TextureData TextureManager::loadTextureData(
 
     return textureData;
 }
+
+void TextureManager::onShaderReload(imr::GraphicsPipeline& pipeline) const {
+    m_blockTextures->bindHelper.reset(pipeline.create_bind_helper());
+}
+
 

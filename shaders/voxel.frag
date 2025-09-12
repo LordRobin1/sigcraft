@@ -138,6 +138,7 @@ void main() {
 
 //    if (ourHitAABox(box.center, box.radius, rayOrigin, rayDirection, 1 / rayDirection))
     if (ourIntersectBoxCommon(box, ray, distance, normal, rayCanStartInBox, oriented, 1.0 / rayDirection)) {
+        vec3 voxelSize = vec3(1.0);
         vec3 intersectionPoint = rayOrigin + rayDirection * distance;
 
         vec3 minCorner = box.center - box.radius;
@@ -149,15 +150,15 @@ void main() {
 
         if (abs(normal.y) > 0.9) {
             // top-bottom faces
-            uv = localPos.xz;
+            uv = localPos.xz * size.xz;
             // differentiate top and bottom
             faceIndex = (normal.y > 0.0) ? 1 : 2;
         } else if (abs(normal.x) > 0.9) {
             // side faces
-            uv = 1 - vec2(localPos.z, localPos.y);
+            uv = 1 - vec2(localPos.z * size.z, localPos.y * size.y);
         } else {
             // front-back faces
-            uv = 1 - vec2(localPos.x, localPos.y);
+            uv = 1 - vec2(localPos.x * size.x, localPos.y * size.y);
         }
 
         int layer = int(voxelTextureIndex) * 3 + faceIndex;

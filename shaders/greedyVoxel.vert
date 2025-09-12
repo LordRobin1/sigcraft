@@ -9,7 +9,7 @@ struct Box {
     mat3 rotation;
 };
 
-struct GreedyVoxel { ivec3 start; ivec3 end; vec3 color; };
+struct GreedyVoxel { ivec3 start; ivec3 end; vec3 color; uint textureIndex; };
 
 layout(scalar, buffer_reference) readonly buffer VoxelBuffer {
     GreedyVoxel voxels[];
@@ -28,6 +28,7 @@ layout(location = 7) out vec3 cameraPosition;
 layout(location = 8) out vec2 screenSize;
 layout(location = 9) out mat4 inverseProjViewMatrix;
 layout(location = 13) out vec2 quad;
+layout(location = 14) out uint voxelTextureIndex;
 
 // gl_InstanceIndex => AABB-corner
 // 0 => bottom-left
@@ -243,6 +244,7 @@ void main() {
     inverseProjViewMatrix = push_constants.inverse_proj_view_matrix;
     screenSize = push_constants.screen_size;
     quad = (corner * 0.5) + 0.5;
+    voxelTextureIndex = voxel.textureIndex;
 
     float stochasticCoverage = pointSize * pointSize;
     if (stochasticCoverage < 0.8 && (gl_InstanceIndex & 0xffff) > stochasticCoverage * (0xffff / 0.8)) {
