@@ -145,9 +145,18 @@ void main() {
 
         // find which face we are rendering
         vec2 uv;
-        if (abs(normal.x) > 0.9) uv = localPos.yz;
-        else if (abs(normal.y) > 0.9) uv = localPos.xz;
-        else uv = localPos.xy;
+        if (abs(normal.y) > 0.9) {
+            // top-bottom face
+            uv = localPos.xz;
+        }
+        else if (abs(normal.x) > 0.9) {
+            // side faces
+            uv = 1 - vec2(localPos.z, localPos.y);
+        }
+        else {
+            // front-back faces
+            uv = 1 - localPos.xy;
+        }
 
         colorOut = texture(textures, vec3(uv, voxelTextureIndex));
 
