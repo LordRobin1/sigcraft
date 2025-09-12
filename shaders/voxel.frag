@@ -140,17 +140,14 @@ void main() {
     if (ourIntersectBoxCommon(box, ray, distance, normal, rayCanStartInBox, oriented, 1.0 / rayDirection)) {
         vec3 intersectionPoint = rayOrigin + rayDirection * distance;
 
-        vec3 localPos = (intersectionPoint - box.center) * box.invRadius;
+        vec3 minCorner = box.center - box.radius;
+        vec3 localPos = intersectionPoint - minCorner;
 
+        // find which face we are rendering
         vec2 uv;
-        if (abs(normal.x) > 0.9) {
-            uv = localPos.yz;
-        } else if (abs(normal.y) > 0.9) {
-            uv = localPos.xz;
-        } else {
-            uv = localPos.xy;
-        }
-        // uv = fract(uv);
+        if (abs(normal.x) > 0.9) uv = localPos.yz;
+        else if (abs(normal.y) > 0.9) uv = localPos.xz;
+        else uv = localPos.xy;
 
         colorOut = texture(textures, vec3(uv, voxelTextureIndex));
 

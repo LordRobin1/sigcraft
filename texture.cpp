@@ -185,11 +185,12 @@ TextureData TextureManager::loadTextureData(const std::string& dirPathStr) {
             width = w; height = h; channels = c;
         } else {
             assert((w == width && h == height) && "All textures loaded into the texture array must have the same dimensions.");
-            nfo("{} has {} channels", name, c);
+            // nfo("{} has {} channels", name, c);
         }
 
         if (auto it = nameToId.find(name); it != nameToId.end()) {
-            m_idToIndex[it->second] = index++;
+            m_idToIndex[it->second] = ++index;
+            nfo("{} mapped to {}", name, index);
         }
 
         textureData.raw.push_back(data);
