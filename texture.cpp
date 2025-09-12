@@ -6,22 +6,33 @@ const std::string BLOCKS = "blocks/";
 const std::string LIQUID = "liquid/";
 const std::string PNG = ".png";
 
+const std::string SIDE = "_side";
+const std::string BOTTOM = "_bottom";
+const std::string TOP = "_top";
+
 const std::unordered_map<std::string, BlockId> nameToId {
     {"stone", BlockStone},
     {"dirt", BlockDirt},
-    {"grass", BlockGrass},
+    {"grass_block", BlockGrass},
     {"sand", BlockSand},
     {"gravel", BlockGravel},
     {"planks", BlockPlanks},
     {"water", BlockWater},
     {"leaves", BlockLeaves},
-    {"wood", BlockWood},
+    {"log", BlockWood},
     {"snow", BlockSnow},
     {"lava", BlockLava},
     {"bedrock", BlockBedrock},
     {"sandstone", BlockSandStone},
     {"unknown", BlockUnknown},
 };
+
+inline std::string cleanName(const std::string& name) {
+    if (name.ends_with(SIDE)) return name.substr(0, name.length() - SIDE.length());
+    if (name.ends_with(BOTTOM)) return name.substr(0, name.length() - BOTTOM.length());
+    if (name.ends_with(TOP)) return name.substr(0, name.length() - TOP.length());
+    return name;
+}
 
 namespace fs = std::filesystem;
 
@@ -31,8 +42,8 @@ Sampler::Sampler(const imr::Device& device) {
         .magFilter = VK_FILTER_NEAREST, // when texel bigger than 1 pixel, pick nearest
         .minFilter= VK_FILTER_NEAREST, // when texel smaller pick nearest
         .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-        .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT, // we want to tile when outside [0, 1]
-        .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, // we want to tile when outside [0, 1]
+        .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
         .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
         .minLod = 0.0f, // no LOD for now...
         .maxLod = 0.0f,
@@ -47,7 +58,8 @@ TextureManager::TextureManager(imr::Device &device, imr::GraphicsPipeline& pipel
     TextureData blockData = loadTextureData(TEXTURE_DIR + BLOCKS);
 
     VkImageUsageFlagBits usage = static_cast<VkImageUsageFlagBits>(
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+        VK_IMAGE_USAGE_SAMPLED_BIT
     );
 
     VkBufferImageCopy copyRegion = {};
@@ -60,8 +72,12 @@ TextureManager::TextureManager(imr::Device &device, imr::GraphicsPipeline& pipel
 
 
     const uint32_t layerCount = blockData.raw.size();
-    const VkExtent3D sizeVk = { static_cast<uint32_t>(blockData.width), static_cast<uint32_t>(blockData.height), 1 };
-    const size_t size = blockData.width * blockData.height * 4;
+    const VkExtent3D sizeVk = {
+        static_cast<uint32_t>(blockData.width * TEXTURES_PER_BLOCK),
+        static_cast<uint32_t>(blockData.height), 1
+    };
+    const size_t singleImageSize = blockData.width * blockData.height * 4;
+    const size_t size = singleImageSize * TEXTURES_PER_BLOCK;
 
     m_blockTextures = std::make_unique<TextureArray>(
         std::make_unique<imr::Image>(
@@ -83,12 +99,26 @@ TextureManager::TextureManager(imr::Device &device, imr::GraphicsPipeline& pipel
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
     };
-    for (int layer = 0; layer < layerCount; layer++) {
-        stagingBuffer.uploadDataSync(layer * size, size, blockData.raw[layer]);
-        stbi_image_free(blockData.raw[layer]);
+    for (const auto& id : m_blockOrder) {
+        uint32_t idx = m_idToIndex[id];
+        auto &[side, top, bottom] = blockData.raw[id];
+
+        assert(side && "Side texture must always be present.");
+        stagingBuffer.uploadDataSync(idx * size, singleImageSize, side);
+        if (top) stagingBuffer.uploadDataSync(idx * size + singleImageSize, singleImageSize, top);
+        else stagingBuffer.uploadDataSync(idx * size + singleImageSize, singleImageSize, side);
+        if (bottom) {
+            assert(side && top && "Side and Top textures must be present if Bottom is also present");
+            stagingBuffer.uploadDataSync(idx * size + singleImageSize * 2, singleImageSize, bottom);
+        } else if (top) stagingBuffer.uploadDataSync(idx * size + singleImageSize * 2, singleImageSize, top);
+        else stagingBuffer.uploadDataSync(idx * size + singleImageSize * 2, singleImageSize, side);
+
+        stbi_image_free(side);
+        stbi_image_free(bottom);
+        stbi_image_free(top);
     }
 
-    copyRegion.imageExtent.width = static_cast<uint32_t>(blockData.width);
+    copyRegion.imageExtent.width = static_cast<uint32_t>(blockData.width * TEXTURES_PER_BLOCK);
     copyRegion.imageExtent.height = static_cast<uint32_t>(blockData.height);
 
     device.executeCommandsSync([&](VkCommandBuffer cmd) {
@@ -166,7 +196,7 @@ TextureManager::TextureManager(imr::Device &device, imr::GraphicsPipeline& pipel
 
 }
 
-TextureData TextureManager::loadTextureData(const std::string& dirPathStr) {
+TextureManager::TextureData TextureManager::loadTextureData(const std::string& dirPathStr) {
     TextureData textureData{};
     fs::path dirPath(dirPathStr);
     int width = 0, height = 0, channels = 0;
@@ -178,6 +208,8 @@ TextureData TextureManager::loadTextureData(const std::string& dirPathStr) {
         int w, h, c;
         const std::string filePath = textureFile.path().string();
         const std::string name = textureFile.path().stem().string();
+        const BlockId id = nameToId.at(cleanName(name));
+
         stbi_uc* data = stbi_load(filePath.c_str(), &w, &h, &c, STBI_rgb_alpha);
         assert(data && "Could not load image data from file");
 
@@ -188,12 +220,16 @@ TextureData TextureManager::loadTextureData(const std::string& dirPathStr) {
             // nfo("{} has {} channels", name, c);
         }
 
-        if (auto it = nameToId.find(name); it != nameToId.end()) {
-            m_idToIndex[it->second] = ++index;
-            nfo("{} mapped to {}", name, index);
+        if (!m_idToIndex.contains(id)) {
+            m_idToIndex[id] = index;
+            m_blockOrder.push_back(id);
+            nfo("Mapped {} to idx {}", name, index);
+            index++;
         }
 
-        textureData.raw.push_back(data);
+        if (name.ends_with(BOTTOM)) textureData.raw[id].bottom = data;
+        else if (name.ends_with(TOP)) textureData.raw[id].top = data;
+        else textureData.raw[id].side = data;
     }
 
     textureData.height = height;

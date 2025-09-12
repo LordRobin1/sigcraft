@@ -11,6 +11,8 @@
 
 /// max size of a texture array
 constexpr size_t TEXTURE_ARRAY_MAX = 1024;
+// max number of textures per block. higher value increases memory cost >:)
+constexpr size_t TEXTURES_PER_BLOCK = 3;
 
 /**
  * The Sampler tells the GPU how to read from a texture.
@@ -19,16 +21,6 @@ struct Sampler {
     VkSampler sampler;
 
     Sampler(const imr::Device& device);
-};
-
-/**
- * Holds raw texture data. Used for loading in textures.
- */
-struct TextureData {
-    std::vector<stbi_uc*> raw{};
-    int width;
-    int height;
-    int channels;
 };
 
 /**
@@ -61,6 +53,28 @@ public:
     std::unordered_map<BlockId, uint32_t> m_idToIndex{};
 
 private:
+    // used to maintain ordering to ensure correct gpu upload
+    std::vector<BlockId> m_blockOrder{};
+
+    /**
+     * Holds raw block data for each axis of block.
+     */
+    struct RawBlockData {
+        stbi_uc* side;
+        stbi_uc* top;
+        stbi_uc* bottom;
+    };
+
+    /**
+     * Holds raw texture data. Used for loading in textures.
+     */
+    struct TextureData {
+        std::unordered_map<BlockId, RawBlockData> raw{};
+        int width;
+        int height;
+        int channels;
+    };
+
     /// loads all files from given dir
     TextureData loadTextureData(const std::string& dirPathStr);
 };
