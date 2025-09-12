@@ -144,33 +144,25 @@ void main() {
         vec3 size = box.radius * 2.0;
         vec3 localPos = (intersectionPoint - minCorner) / size;
 
-        float tileWidth = 1.f / 3.f;
         vec2 uv;
+        int faceIndex = 0;
+
         if (abs(normal.y) > 0.9) {
-            // top-bottom face
+            // top-bottom faces
             uv = localPos.xz;
-            // check if top or bottom
-            if (normal.y > 0.0) {
-                // top
-                uv.x = uv.x * tileWidth + tileWidth;
-            } else {
-                // bottom
-                uv.x = uv.x * tileWidth + tileWidth * 2;
-            }
+            // differentiate top and bottom
+            faceIndex = (normal.y > 0.0) ? 1 : 2;
         } else if (abs(normal.x) > 0.9) {
             // side faces
             uv = 1 - vec2(localPos.z, localPos.y);
-            // take side texture
-            uv.x = uv.x * tileWidth;
         } else {
             // front-back faces
-            uv = 1 - localPos.xy;
-            // take side texture
-            uv.x = uv.x * tileWidth;
+            uv = 1 - vec2(localPos.x, localPos.y);
         }
 
+        int layer = int(voxelTextureIndex) * 3 + faceIndex;
 
-        colorOut = texture(textures, vec3(uv, 2));
+        colorOut = texture(textures, vec3(uv, layer));
 
         const float near = 0.1;
         const float far = 1000.0;

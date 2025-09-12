@@ -123,6 +123,8 @@ void GameVoxels::renderFrame() {
         push_constants.screen_size = vec2(context.image().size().width, context.image().size().height);
 
         context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]{
+            textureManager.m_blockTextures->bindHelper->commit_frame(cmdbuf);
+
             auto load_chunk = [&](const int cx, const int cz) {
                 Chunk* loaded = world->get_loaded_chunk(cx, cz);
                 if (!loaded)

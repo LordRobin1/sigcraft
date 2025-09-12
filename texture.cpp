@@ -52,7 +52,6 @@ Sampler::Sampler(const imr::Device& device) {
     vkCreateSampler(device.device, &createInfo, nullptr, &sampler);
 }
 
-
 TextureManager::TextureManager(imr::Device &device, imr::GraphicsPipeline& pipeline, Sampler& sampler) {
     // TODO: Add liquid support
     TextureData blockData = loadTextureData(TEXTURE_DIR + BLOCKS);
@@ -62,22 +61,26 @@ TextureManager::TextureManager(imr::Device &device, imr::GraphicsPipeline& pipel
         VK_IMAGE_USAGE_SAMPLED_BIT
     );
 
+    VkExtent3D sizeVk{
+        static_cast<uint32_t>(blockData.width),
+        static_cast<uint32_t>(blockData.height),
+        1
+    };
+
+
     VkBufferImageCopy copyRegion = {};
     copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     copyRegion.imageSubresource.mipLevel = 0;
     copyRegion.imageSubresource.baseArrayLayer = 0;
     copyRegion.imageSubresource.layerCount = 1;
-    copyRegion.imageExtent.depth = 1;
+    copyRegion.imageExtent = sizeVk;
     copyRegion.bufferOffset = 0;
+    copyRegion.imageOffset = {0, 0, 0};
 
-
-    const uint32_t layerCount = blockData.raw.size();
-    const VkExtent3D sizeVk = {
-        static_cast<uint32_t>(blockData.width * TEXTURES_PER_BLOCK),
-        static_cast<uint32_t>(blockData.height), 1
-    };
     const size_t singleImageSize = blockData.width * blockData.height * 4;
-    const size_t size = singleImageSize * TEXTURES_PER_BLOCK;
+    const uint32_t blockCount = static_cast<uint32_t>(m_blockOrder.size());
+    const uint32_t layerCount = blockCount * TEXTURES_PER_BLOCK;
+
 
     m_blockTextures = std::make_unique<TextureArray>(
         std::make_unique<imr::Image>(
@@ -95,31 +98,28 @@ TextureManager::TextureManager(imr::Device &device, imr::GraphicsPipeline& pipel
 
     imr::Buffer stagingBuffer{
         device,
-        size * layerCount,
+        singleImageSize * layerCount,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
     };
+
     for (const auto& id : m_blockOrder) {
         uint32_t idx = m_idToIndex[id];
         auto &[side, top, bottom] = blockData.raw[id];
 
-        assert(side && "Side texture must always be present.");
-        stagingBuffer.uploadDataSync(idx * size, singleImageSize, side);
-        if (top) stagingBuffer.uploadDataSync(idx * size + singleImageSize, singleImageSize, top);
-        else stagingBuffer.uploadDataSync(idx * size + singleImageSize, singleImageSize, side);
-        if (bottom) {
-            assert(side && top && "Side and Top textures must be present if Bottom is also present");
-            stagingBuffer.uploadDataSync(idx * size + singleImageSize * 2, singleImageSize, bottom);
-        } else if (top) stagingBuffer.uploadDataSync(idx * size + singleImageSize * 2, singleImageSize, top);
-        else stagingBuffer.uploadDataSync(idx * size + singleImageSize * 2, singleImageSize, side);
+        assert(side && "Side texture must exist");
+
+        // general oder is first side, top, bottom
+        // if top is not present, then bottom may also not be present and all 3 faces are side
+        // if side and top are present, then bottom is the same as top.
+        stagingBuffer.uploadDataSync((idx * TEXTURES_PER_BLOCK + 0) * singleImageSize, singleImageSize, side);
+        stagingBuffer.uploadDataSync((idx * TEXTURES_PER_BLOCK + 1) * singleImageSize, singleImageSize, top ? top : side);
+        stagingBuffer.uploadDataSync((idx * TEXTURES_PER_BLOCK + 2) * singleImageSize, singleImageSize, bottom ? bottom : (top ? top : side));
 
         stbi_image_free(side);
         stbi_image_free(bottom);
         stbi_image_free(top);
     }
-
-    copyRegion.imageExtent.width = static_cast<uint32_t>(blockData.width * TEXTURES_PER_BLOCK);
-    copyRegion.imageExtent.height = static_cast<uint32_t>(blockData.height);
 
     device.executeCommandsSync([&](VkCommandBuffer cmd) {
         VkImageMemoryBarrier2 preCopy {
@@ -150,7 +150,7 @@ TextureManager::TextureManager(imr::Device &device, imr::GraphicsPipeline& pipel
         device.dispatch.cmdPipelineBarrier2(cmd, &depPre);
 
         for (int layer = 0; layer < layerCount; layer++) {
-            copyRegion.bufferOffset = layer * size;
+            copyRegion.bufferOffset = layer * singleImageSize;
             copyRegion.imageSubresource.baseArrayLayer = layer;
 
             vkCmdCopyBufferToImage(
@@ -193,7 +193,6 @@ TextureManager::TextureManager(imr::Device &device, imr::GraphicsPipeline& pipel
 
         m_blockTextures->bindHelper->commit(cmd);
     });
-
 }
 
 TextureManager::TextureData TextureManager::loadTextureData(const std::string& dirPathStr) {
