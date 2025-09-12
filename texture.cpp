@@ -216,13 +216,13 @@ TextureManager::TextureData TextureManager::loadTextureData(const std::string& d
             width = w; height = h; channels = c;
         } else {
             assert((w == width && h == height) && "All textures loaded into the texture array must have the same dimensions.");
-            // nfo("{} has {} channels", name, c);
+            nfo("{} has {} channels", name, c);
         }
 
         if (!m_idToIndex.contains(id)) {
             m_idToIndex[id] = index;
             m_blockOrder.push_back(id);
-            nfo("Mapped {} to idx {}", name, index);
+            // nfo("Mapped {} to idx {}", name, index);
             index++;
         }
 
