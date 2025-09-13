@@ -9,9 +9,7 @@
 #include "slog.hpp"
 #include <enklume/block_data.h>
 
-/// max size of a texture array
 constexpr size_t TEXTURE_ARRAY_MAX = 1024;
-// max number of textures per block. higher value increases memory cost >:)
 constexpr size_t TEXTURES_PER_BLOCK = 3;
 
 /**
