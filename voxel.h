@@ -7,13 +7,14 @@
 #include <span>
 
 #include "chunk_mesh.h"
+#include "nasl/nasl_mat.h"
 
 using namespace nasl;
 
 struct Voxel {
     ivec3 position;
     vec3 color;
-    // mat4 orientation; // for later
+    mat4 rotation = identity_mat4; // for later
 
     void copy_to(std::vector<uint8_t>& buf) const {
         uint8_t tmp[sizeof(Voxel)];

@@ -147,18 +147,20 @@ int main(int argc, char** argv) {
     // ========= Upload a some voxels to the GPU =========
     constexpr size_t voxel_num = 3;
     std::vector<uint8_t> data;
-    Voxel v[voxel_num] = {
+    std::array<Voxel, voxel_num> v {
         {
-            .position = { 0, 0, 0 },
-            .color = { 255, 0, 0 },
-        },
-        {
-            .position = { 1, 0, 0 },
-            .color = { 0, 255, 0 },
-        },
-        {
-            .position = { 0, 0, 1 },
-            .color = { 0, 0, 255 },
+            {
+                .position = { 0, 0, 0 },
+                .color = { 255, 0, 0 },
+            },
+            {
+                .position = { 1, 0, 0 },
+                .color = { 0, 255, 0 },
+            },
+            {
+                .position = { 0, 0, 1 },
+                .color = { 0, 0, 255 },
+            }
         }
     };
     // =====================================================
@@ -167,14 +169,11 @@ int main(int argc, char** argv) {
         fps_counter.tick();
         fps_counter.updateGlfwWindowTitle(window);
 
+        data.clear();
         for (auto& voxel : v) {
+            voxel.rotation = rotate_axis_mat4(1, delta * 2) * voxel.rotation;
+            voxel.copy_to(data);
         }
-        int rotation_i_1 = 0;
-        v[rotation_i_1].rotation = rotate_axis_mat4(1, delta * 2) * v[rotation_i_1].rotation;
-        v[rotation_i_1].copy_to(data);
-        int rotation_i_2 = 2;
-        v[rotation_i_2].rotation = rotate_axis_mat4(1, delta * 2) * v[rotation_i_2].rotation;
-        v[rotation_i_2].copy_to(data);
         auto buffer = std::make_unique<imr::Buffer>(device, data.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
         buffer->uploadDataSync(0, data.size(), data.data());
         push_constants.voxel_buffer = buffer->device_address();

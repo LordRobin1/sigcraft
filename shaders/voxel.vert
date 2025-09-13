@@ -9,7 +9,7 @@ struct Box {
     mat3 rotation;
 };
 
-struct Voxel { ivec3 position; vec3 color; };
+struct Voxel { ivec3 position; vec3 color; mat4 rotation; };
 
 //layout(location = 0) in ivec3 vertexIn;
 //layout(location = 1) in vec3 normalIn;
@@ -239,7 +239,7 @@ void main() {
     cameraPosition = push_constants.camera_position;
     inverseProjViewMatrix = push_constants.inverse_proj_view_matrix;
     screenSize = push_constants.screen_size;
-    box = Box(voxel.position, vec3(radius), vec3(invRadius), mat3(1.0));
+    box = Box(voxel.position, vec3(radius), vec3(invRadius), mat3(voxel.rotation));
 
     gl_Position = position;
 }

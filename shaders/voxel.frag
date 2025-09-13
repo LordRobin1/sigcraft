@@ -129,7 +129,7 @@ void main() {
     Ray ray = Ray(rayOrigin, rayDirection);
 
     const bool rayCanStartInBox = true;
-    const bool oriented = false;
+    const bool oriented = true;
     float distance;
     vec3 normal;
 
@@ -143,7 +143,7 @@ void main() {
         // set depth value
         const float near = 0.1;
         const float far = 1000.0;
-        gl_FragDepth = (1/distance - 1/near) / (1/far - 1/near);
+        gl_FragDepth = clamp((distance - near) / (far - near), 0.0, 1.0);
     } else {
         discard;
     }
