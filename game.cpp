@@ -50,6 +50,7 @@ void GameVoxels::renderFrame() {
         shaders = VoxelShaders(device, swapchain, shaderFiles);
         textureManager.onShaderReload(*shaders.pipeline);
         reload_shaders = false;
+        textureManager.m_blockTextures->bindHelper->set_combined_image_sampler(0, 0, *textureManager.m_blockTextures->textures, sampler.sampler);
         std::cout << "Vertex shader: " << shaderFiles[0] << std::endl;
         std::cout << "Pixel shader: " << shaderFiles[1] << std::endl;
     }
@@ -205,7 +206,7 @@ GameMesh::GameMesh(imr::Device& device, GLFWwindow* window, imr::Swapchain& swap
         auto* game = static_cast<GameMesh*>(glfwGetWindowUserPointer(window));
         if (key == GLFW_KEY_R && mods & GLFW_MOD_CONTROL) {
             game->reload_shaders = true;
-        } else if (key == GLFW_KEY_F12 && action == GLFW_PRESS) {
+        } else if (key == GLFW_KEY_F10 && action == GLFW_PRESS) {
             game->toggleMode = true;
         }
     });
