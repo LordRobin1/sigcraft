@@ -164,6 +164,9 @@ void main() {
         int layer = int(voxelTextureIndex) * 3 + faceIndex;
 
         colorOut = texture(textures, vec3(uv, layer));
+        // flat shading
+        if (faceIndex == 0) colorOut = colorOut * 0.6;
+        else if (faceIndex == 2) colorOut = colorOut * 0.4;
 
         const float near = 0.1;
         const float far = 1000.0;
