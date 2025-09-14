@@ -17,8 +17,13 @@ constexpr size_t TEXTURES_PER_BLOCK = 3;
  */
 struct Sampler {
     VkSampler sampler;
+    const imr::Device& device;
 
     Sampler(const imr::Device& device);
+
+    ~Sampler() {
+        vkDestroySampler(device.device, sampler, nullptr);
+    }
 };
 
 /**

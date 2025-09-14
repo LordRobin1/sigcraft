@@ -38,7 +38,7 @@ inline std::string cleanName(const std::string& name) {
 
 namespace fs = std::filesystem;
 
-Sampler::Sampler(const imr::Device& device) {
+Sampler::Sampler(const imr::Device& device) : device(device) {
     VkSamplerCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
         .magFilter = VK_FILTER_NEAREST, // when texel bigger than 1 pixel, pick nearest
