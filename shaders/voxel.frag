@@ -55,7 +55,7 @@ bool ourIntersectBoxCommon(Box box, Ray ray, out float distance, out vec3 normal
     // Move to the box's reference frame. This is unavoidable and un-optimizable.
     ray.origin = box.rotation * (ray.origin - box.center);
     if (oriented) {
-        ray.direction = ray.direction * box.rotation;
+        ray.direction = box.rotation * ray.direction;
     }
 
     // This "rayCanStartInBox" branch is evaluated at compile time because `const` in GLSL
