@@ -87,7 +87,8 @@ void GameVoxels::renderFrame() {
         }
 
         vk.cmdClearColorImage(cmdbuf, image.handle(), VK_IMAGE_LAYOUT_GENERAL, tmpPtr((VkClearColorValue) {
-            .float32 = { 0.0f, 0.0f, 0.0f, 1.0f },
+            // blueish color for sky
+            .float32 = { 0.294f, 0.498f, 0.875f, 1.0f },
         }), 1, tmpPtr(image.whole_image_subresource_range()));
 
         vk.cmdClearDepthStencilImage(cmdbuf, depthBuffer->handle(), VK_IMAGE_LAYOUT_GENERAL, tmpPtr((VkClearDepthStencilValue) {
