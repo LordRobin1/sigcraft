@@ -18,6 +18,7 @@ layout(location = 8) in vec2 screenSize;
 layout(location = 9) in mat4 inverseProjViewMatrix;
 layout(location = 13) in vec2 quadUV;
 layout(location = 14) flat in uint voxelTextureIndex;
+layout(location = 15) flat in int texturesEnabled;
 
 layout(location = 0) out vec4 outColor;
 

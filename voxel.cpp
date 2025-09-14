@@ -44,7 +44,6 @@ void chunk_voxels(
 
                     if (block_data != BlockAir && !occluded) {
                         Voxel v;
-                        // TODO adding section * CUNK_CHUNK_SIZE doesn't make any sense
                         v.position.x = x + chunkPos.x * CUNK_CHUNK_SIZE;
                         v.position.y = world_y;
                         v.position.z = z + chunkPos.y * CUNK_CHUNK_SIZE; // y is our z here
@@ -181,7 +180,27 @@ ChunkVoxels::ChunkVoxels(
     }
     const size_t voxel_buffer_size = voxel_buffer.size();
     if (voxel_buffer_size > 0) {
-        voxel_buf = std::make_unique<imr::Buffer>(device, voxel_buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-        voxel_buf->uploadDataSync(0, voxel_buffer_size, voxel_buffer.data());
+        gpu_buffer = std::make_unique<imr::Buffer>(device, voxel_buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+        gpu_buffer->uploadDataSync(0, voxel_buffer_size, voxel_buffer.data());
     }
+}
+
+void ChunkVoxels::update(float delta) {
+    if (!is_playing_loading_animation) {
+        return;
+    }
+    animation_progress += delta * speed;
+    if (animation_progress >= 1.0f) {
+        rotation = identity_mat4;
+        radius = 0.5f;
+        height_adjust = 0;
+        is_playing_loading_animation = false;
+        return;
+    }
+    const float angle = animation_progress * angle_target;
+    const float rad = animation_progress * radius_target;
+    const float h = height_adjust_start + animation_progress * -height_adjust_start;
+    rotation = rotate_axis_mat4(1, angle);
+    radius = rad;
+    height_adjust = h;
 }

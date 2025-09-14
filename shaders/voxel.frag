@@ -20,6 +20,7 @@ layout(location = 7) in vec3 cameraPosition;
 layout(location = 8) in vec2 screenSize;
 layout(location = 9) in mat4 inverseProjViewMatrix;
 layout(location = 14) flat in uint voxelTextureIndex;
+layout(location = 15) flat in int texturesEnabled;
 
 layout(location = 0) out vec4 colorOut;
 
@@ -132,12 +133,17 @@ void main() {
     Ray ray = Ray(rayOrigin, rayDirection);
 
     const bool rayCanStartInBox = true;
-    const bool oriented = false;
+    const bool oriented = true;
     float distance;
     vec3 normal;
 
-//    if (ourHitAABox(box.center, box.radius, rayOrigin, rayDirection, 1 / rayDirection))
-    if (ourIntersectBoxCommon(box, ray, distance, normal, rayCanStartInBox, oriented, 1.0 / rayDirection)) {
+    bool hit = ourIntersectBoxCommon(box, ray, distance, normal, rayCanStartInBox, oriented, 1.0 / rayDirection);
+
+    if (!hit) {
+        discard;
+    }
+
+    if (texturesEnabled == 1) {
         vec3 voxelSize = vec3(1.0);
         vec3 intersectionPoint = rayOrigin + rayDirection * distance;
 
@@ -167,11 +173,15 @@ void main() {
         // flat shading
         if (faceIndex == 0) colorOut = colorOut * 0.6;
         else if (faceIndex == 2) colorOut = colorOut * 0.4;
-
-        const float near = 0.1;
-        const float far = 1000.0;
-        gl_FragDepth = clamp((distance - near) / (far - near), 0.0, 1.0);
     } else {
-        discard;
+        // compute the color
+        colorOut = vec4(normal * 0.5 + vec3(0.5), 1.0);
+        colorOut = vec4(color * 0.8 + 0.2 * dot(normal, normalize(vec3(1.0, 0.5, 0.1))), 1.0);
+
     }
+    // magic numbers from `camera_get_view_mat4` in camera.cpp
+    // set depth value
+    const float near = 0.1;
+    const float far = 1000.0;
+    gl_FragDepth = clamp((distance - near) / (far - near), 0.0, 1.0);
 }

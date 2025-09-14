@@ -26,6 +26,8 @@ GameVoxels::GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &
             game->toggleGreedy = true;
         } else if (key == GLFW_KEY_F10 && action == GLFW_PRESS) {
             game->toggleMode = true;
+        } else if (key == GLFW_KEY_F3 && action == GLFW_PRESS) {
+            game->texturesEnabled = !game->texturesEnabled;
         }
     });
 }
@@ -127,6 +129,7 @@ void GameVoxels::renderFrame() {
         push_constants.inverse_matrix = invert_mat4(m);
         push_constants.camera_position = camera.position;
         push_constants.screen_size = vec2(context.image().size().width, context.image().size().height);
+        push_constants.textures = texturesEnabled;
 
         context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]{
 
@@ -183,7 +186,13 @@ void GameVoxels::renderFrame() {
                  if (!voxels || voxels->num_voxels == 0)
                      continue;
 
-                 push_constants.voxel_buffer = voxels->voxel_buffer_device_address(greedyVoxels);
+                 if (!greedyVoxels) {
+                    voxels->update(delta);
+                 }
+                 push_constants.rotation = voxels->rotation;
+                 push_constants.radius = voxels->radius;
+                 push_constants.height_adjust = voxels->height_adjust;
+                 push_constants.voxel_buffer = voxels->voxel_buffer_device_address();
                  vkCmdPushConstants(
                      cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT,
                      0, sizeof(push_constants), &push_constants);

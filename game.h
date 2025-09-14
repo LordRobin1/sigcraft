@@ -19,9 +19,7 @@ protected:
     GLFWwindow* window;
     imr::Swapchain& swapchain;
     std::unique_ptr<imr::Image> depthBuffer;
-    Sampler sampler{device};
     Shaders shaders;
-    TextureManager textureManager{device, *shaders.pipeline, sampler};
     World* world;
     Camera& camera;
     CameraFreelookState camera_state = {
@@ -47,8 +45,11 @@ public:
 
 struct GameVoxels final : Game {
 private:
+    Sampler sampler{device};
+    TextureManager textureManager{device, *shaders.pipeline, sampler};
     bool toggleGreedy = false;
     int debugShader = 0;
+    bool texturesEnabled = true;
     std::vector<std::string> vertexShaders = { "voxel.vert.spv", "greedyVoxel.vert.spv" };
     std::vector<std::string> fragmentShaders = {"voxel.frag.spv", "visualize_billboards.frag.spv", "outline_billboards.frag.spv"};
     struct {
@@ -57,6 +58,10 @@ private:
         vec3 camera_position;
         VkDeviceAddress voxel_buffer;
         vec2 screen_size;
+        bool textures;
+        mat4 rotation;
+        float radius;
+        float height_adjust;
     } push_constants;
 
 public:

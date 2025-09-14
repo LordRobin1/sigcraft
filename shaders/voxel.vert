@@ -15,12 +15,16 @@ layout(scalar, buffer_reference) readonly buffer VoxelBuffer {
     Voxel voxels[];
 };
 layout(scalar, push_constant) uniform T {
-    mat4 proj_view_mat;
-    mat4 inverse_proj_view_matrix;
-    vec3 camera_position;
-    VoxelBuffer voxel_buffer;
-    vec2 screen_size;
-} push_constants;
+    mat4 proj_view_mat;            // 64
+    mat4 inverse_proj_view_matrix; // 64
+    vec3 camera_position;          // 16 (4 padding)
+    VoxelBuffer voxel_buffer;      // 8
+    vec2 screen_size;              // 8
+    bool texturesEnabled;          // 4
+    mat4 rotation;                 // 64
+    float radius;                  // 4
+    float height_adjust;           // 4
+} push_constants;                  // 236 (confirmed by renderdoc)
 
 layout(location = 0) out Box box;
 layout(location = 6) out vec3 color;
@@ -29,8 +33,9 @@ layout(location = 8) out vec2 screenSize;
 layout(location = 9) out mat4 inverseProjViewMatrix;
 layout(location = 13) out vec2 quad;
 layout(location = 14) out uint voxelTextureIndex;
+layout(location = 15) out int texturesEnabled; // bool
 
-// gl_InstanceIndex => AABB-corner
+// gl_VertexIndex => AABB-corner
 // 0 => bottom-left
 // 1 => bottom-right
 // 2 => top-right
@@ -101,7 +106,7 @@ vec4 intersectPlane(vec4 a, vec4 b, float dA, float dB) {
     return mix(a, b, clamp(t, 0.0, 1.0));
 }
 
-// Plane distance function array (function pointers not allowed; use switch)
+// Plane distance functions map
 float planeDist(int pid, vec4 p) {
     if (pid == 0) return distLeft(p);
     if (pid == 1) return distRight(p);
@@ -116,22 +121,26 @@ void computeClippedAABB(
     vec3 wsCenter,
     vec3 radius,
     mat4 projView,
+    mat4 rotation,
     out vec2 ndcMin,
     out vec2 ndcMax
 ) {
     // Corner points in clip space
     vec4 C[8];
     {
-        vec3 mn = wsCenter - radius;
-        vec3 mx = wsCenter + radius;
-        C[0] = projView * vec4(mn.x, mn.y, mn.z, 1.0);
-        C[1] = projView * vec4(mn.x, mn.y, mx.z, 1.0);
-        C[2] = projView * vec4(mn.x, mx.y, mn.z, 1.0);
-        C[3] = projView * vec4(mn.x, mx.y, mx.z, 1.0);
-        C[4] = projView * vec4(mx.x, mn.y, mn.z, 1.0);
-        C[5] = projView * vec4(mx.x, mn.y, mx.z, 1.0);
-        C[6] = projView * vec4(mx.x, mx.y, mn.z, 1.0);
-        C[7] = projView * vec4(mx.x, mx.y, mx.z, 1.0);
+        vec3 mn = 0 - radius;
+        vec3 mx = 0 + radius;
+        mat4 translation = mat4(1.0);
+        translation[3].xyz = wsCenter;
+        mat4 modelView = projView * translation * rotation;
+        C[0] = modelView * vec4(mn.x, mn.y, mn.z, 1.0);
+        C[1] = modelView * vec4(mn.x, mn.y, mx.z, 1.0);
+        C[2] = modelView * vec4(mn.x, mx.y, mn.z, 1.0);
+        C[3] = modelView * vec4(mn.x, mx.y, mx.z, 1.0);
+        C[4] = modelView * vec4(mx.x, mn.y, mn.z, 1.0);
+        C[5] = modelView * vec4(mx.x, mn.y, mx.z, 1.0);
+        C[6] = modelView * vec4(mx.x, mx.y, mn.z, 1.0);
+        C[7] = modelView * vec4(mx.x, mx.y, mx.z, 1.0);
     }
     // 12 edges by corner indices
     const ivec2 BOX_EDGES[12] = ivec2[12](
@@ -198,16 +207,18 @@ void computeClippedAABB(
 
 
 void main() {
-    const float radius = 0.5;
-    const float invRadius = 2;
     const float CLIPPING_THRESHOLD = 200.0;
+
+    float radius = push_constants.radius;
+    float invRadius = 1.0f / radius;
 
     Voxel voxel = push_constants.voxel_buffer.voxels[gl_InstanceIndex];
     vec2 corner = fullscreenVerts[gl_VertexIndex];
 
-    vec4 position = push_constants.proj_view_mat * vec4(voxel.position, 1.0);
+    vec4 wsPosition = vec4(vec3(voxel.position) + vec3(0.0, push_constants.height_adjust, 0.0), 1.0);
+    vec4 position = push_constants.proj_view_mat * wsPosition;
     float pointSize;
-    quadricProj(vec3(voxel.position), push_constants.proj_view_mat, push_constants.screen_size * 0.5, position, pointSize);
+    quadricProj(wsPosition.xyz, push_constants.proj_view_mat, push_constants.screen_size * 0.5, position, pointSize);
 
     vec2 screenOffset = corner * (pointSize / push_constants.screen_size);
     position.xy += screenOffset * position.w;
@@ -215,7 +226,7 @@ void main() {
     // check if we need to compute the AABB greedily
     if (pointSize * 2.0 > CLIPPING_THRESHOLD) {
         vec2 ndcMin, ndcMax;
-        computeClippedAABB(vec3(voxel.position), vec3(radius), push_constants.proj_view_mat, ndcMin, ndcMax);
+        computeClippedAABB(wsPosition.xyz, vec3(radius), push_constants.proj_view_mat, push_constants.rotation, ndcMin, ndcMax);
 
         // If completely clipped, return early
         // This should only be the case, if we do chunk-only/no frustum culling, so some voxels might not be visible
@@ -237,9 +248,10 @@ void main() {
     cameraPosition = push_constants.camera_position;
     inverseProjViewMatrix = push_constants.inverse_proj_view_matrix;
     screenSize = push_constants.screen_size;
-    box = Box(voxel.position, vec3(radius), vec3(invRadius), mat3(1.0));
+    box = Box(wsPosition.xyz, vec3(radius), vec3(invRadius), mat3(push_constants.rotation));
     quad = (corner * 0.5) + 0.5;
     voxelTextureIndex = voxel.textureIndex;
+    texturesEnabled = int(push_constants.texturesEnabled);
 
     float stochasticCoverage = pointSize * pointSize;
     if (stochasticCoverage < 0.8 && (gl_InstanceIndex & 0xffff) > stochasticCoverage * (0xffff / 0.8)) {

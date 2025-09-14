@@ -15,12 +15,16 @@ layout(scalar, buffer_reference) readonly buffer VoxelBuffer {
     GreedyVoxel voxels[];
 };
 layout(scalar, push_constant) uniform T {
-    mat4 proj_view_mat;
-    mat4 inverse_proj_view_matrix;
-    vec3 camera_position;
-    VoxelBuffer voxel_buffer;
-    vec2 screen_size;
-} push_constants;
+    mat4 proj_view_mat;            // 64
+    mat4 inverse_proj_view_matrix; // 64
+    vec3 camera_position;          // 16 (4 padding)
+    VoxelBuffer voxel_buffer;      // 8
+    vec2 screen_size;              // 8
+    bool texturesEnabled;          // 4
+    mat4 rotation;                 // 64
+    float radius;                  // 4
+    float height_adjust;           // 4
+} push_constants;                  // 236 (confirmed by renderdoc)
 
 layout(location = 0) out Box box;
 layout(location = 6) out vec3 color;
@@ -29,6 +33,7 @@ layout(location = 8) out vec2 screenSize;
 layout(location = 9) out mat4 inverseProjViewMatrix;
 layout(location = 13) out vec2 quad;
 layout(location = 14) out uint voxelTextureIndex;
+layout(location = 15) out int texturesEnabled; // bool
 
 // gl_InstanceIndex => AABB-corner
 // 0 => bottom-left
@@ -245,6 +250,7 @@ void main() {
     screenSize = push_constants.screen_size;
     quad = (corner * 0.5) + 0.5;
     voxelTextureIndex = voxel.textureIndex;
+    texturesEnabled = int(push_constants.textures);
 
     float stochasticCoverage = pointSize * pointSize;
     if (stochasticCoverage < 0.8 && (gl_InstanceIndex & 0xffff) > stochasticCoverage * (0xffff / 0.8)) {
