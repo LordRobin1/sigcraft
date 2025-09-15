@@ -146,39 +146,49 @@ void main() {
     if (texturesEnabled == 1) {
         vec3 voxelSize = vec3(1.0);
         vec3 intersectionPoint = rayOrigin + rayDirection * distance;
-
-        vec3 minCorner = box.center - box.radius;
+        vec3 localIntersectionPoint = box.rotation * (intersectionPoint - box.center); // rotate around (0, 0, 0)
         vec3 size = box.radius * 2.0;
-        vec3 localPos = (intersectionPoint - minCorner) / size;
+        vec3 localPos = (localIntersectionPoint / box.radius) * 0.5 + 0.5; // normalize from [-radius, radius] to [0, 1]
+
+        vec3 absLocalIntersection = abs(localIntersectionPoint);
+        vec3 localNormal = vec3(0.0);
+
+        // determine relevant axis
+        if (absLocalIntersection.x >= absLocalIntersection.y && absLocalIntersection.x >= absLocalIntersection.z) {
+            localNormal.x = sign(localIntersectionPoint.x);
+        } else if (absLocalIntersection.y >= absLocalIntersection.z) {
+            localNormal.y = sign(localIntersectionPoint.y);
+        } else {
+            localNormal.z = sign(localIntersectionPoint.z);
+        }
 
         vec2 uv;
         int faceIndex = 0;
 
-        if (abs(normal.y) > 0.9) {
+        if (abs(localNormal.y) == 1.f) {
             // top-bottom faces
-            uv = localPos.xz * size.xz;
+            uv = localPos.xz;
             // differentiate top and bottom
-            faceIndex = (normal.y > 0.0) ? 1 : 2;
-        } else if (abs(normal.x) > 0.9) {
+            faceIndex = (localNormal.y > 0.0) ? 1 : 2;
+        } else if (abs(localNormal.x) == 1.f) {
             // side faces
-            uv = 1 - vec2(localPos.z * size.z, localPos.y * size.y);
+            uv = 1 - vec2(localPos.z, localPos.y);
         } else {
             // front-back faces
-            uv = 1 - vec2(localPos.x * size.x, localPos.y * size.y);
+            uv = 1 - vec2(localPos.x, localPos.y);
         }
 
         int layer = int(voxelTextureIndex) * 3 + faceIndex;
-
         colorOut = texture(textures, vec3(uv, layer));
         // flat shading
         if (faceIndex == 0) colorOut = colorOut * 0.6;
-        else if (faceIndex == 2) colorOut = colorOut * 0.4;
+        if (faceIndex == 2) colorOut = colorOut * 0.4;
     } else {
         // compute the color
         colorOut = vec4(normal * 0.5 + vec3(0.5), 1.0);
         colorOut = vec4(color * 0.8 + 0.2 * dot(normal, normalize(vec3(1.0, 0.5, 0.1))), 1.0);
-
     }
+
     // magic numbers from `camera_get_view_mat4` in camera.cpp
     // set depth value
     const float near = 0.1;
