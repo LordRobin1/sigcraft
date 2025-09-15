@@ -22,18 +22,24 @@ protected:
     Shaders shaders;
     World* world;
     Camera& camera;
-    CameraFreelookState camera_state = {
-        .fly_speed = 100.0f,
-        .mouse_sensitivity = 1,
-    };
-    CameraInput camera_input = {};
+    std::shared_ptr<CameraFreelookState> camera_state = std::make_shared<CameraFreelookState>(50.0f,1);
+    std::shared_ptr<CameraInput> camera_input = std::make_shared<CameraInput>();
     bool reload_shaders = false;
     uint64_t prev_frame = imr_get_time_nano();
     float delta = 0;
 
-    Game(imr::Device& device, GLFWwindow* window, imr::Swapchain& swapchain, Shaders shaders, World* world, Camera& camera)
-        : device(device), window(window), swapchain(swapchain), shaders(std::move(shaders)), world(world), camera(camera)
-    {}
+    Game(imr::Device& device, GLFWwindow* window, imr::Swapchain& swapchain, Shaders shaders, World* world,
+         Camera& camera)
+        : device(device), window(window), swapchain(swapchain), shaders(std::move(shaders)), world(world),
+          camera(camera) {}
+
+    Game(imr::Device& device, GLFWwindow* window, imr::Swapchain& swapchain, Shaders shaders, World* world,
+         Camera& camera, const std::shared_ptr<CameraInput>& camera_input,
+         const std::shared_ptr<CameraFreelookState>& camera_state) : device(device), window(window),
+                                                                     swapchain(swapchain), shaders(std::move(shaders)),
+                                                                     world(world), camera(camera),
+                                                                     camera_state(camera_state),
+                                                                     camera_input(camera_input) {}
 
 public:
     bool toggleMode = false;
@@ -62,12 +68,23 @@ private:
         mat4 rotation;
         float radius;
         float height_adjust;
-    } push_constants;
+    } push_constants = {};
 
 public:
-    GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &swapchain, World *world, Camera &camera, bool greedyVoxels);
+    GameVoxels(imr::Device& device, GLFWwindow* window, imr::Swapchain& swapchain, World* world, Camera& camera,
+               bool greedyVoxels);
+
+    GameVoxels(
+        imr::Device& device,
+        GLFWwindow* window,
+        imr::Swapchain& swapchain,
+        World* world,
+        Camera& camera,
+        const std::shared_ptr<CameraInput>& camera_input,
+        const std::shared_ptr<CameraFreelookState>& camera_state
+    );
     void renderFrame() override;
-    bool greedyVoxels;
+    bool greedyVoxels = false;
 };
 
 struct GameMesh final : Game {
@@ -76,7 +93,7 @@ private:
         mat4 matrix;
         ivec3 chunk_position;
         float time;
-    } push_constants;
+    } push_constants = {};
 
 public:
     GameMesh(imr::Device& device, GLFWwindow* window, imr::Swapchain& swapchain, World* world, Camera& camera);

@@ -7,6 +7,7 @@
 
 #include "camera.h"
 #include "game.h"
+#include "benchmark.h"
 
 using namespace nasl;
 
@@ -23,6 +24,12 @@ int main(int argc, char** argv) {
     imr::FpsCounter fps_counter;
     auto world = World(argv[1]);
     Camera camera = {{30, 141, -12}, {0, 0}, 90};
+
+    auto benchmark = Benchmark(camera, device, window, swapchain, &world);
+    benchmark.recording_session();
+    swapchain.drain();
+    return 0;
+
     bool voxels = true;
     bool greedyVoxels = false;
     std::unique_ptr<Game> game = std::make_unique<GameVoxels>(device, window, swapchain, &world, camera, greedyVoxels);

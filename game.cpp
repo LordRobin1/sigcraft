@@ -32,6 +32,19 @@ GameVoxels::GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &
     });
 }
 
+GameVoxels::GameVoxels(
+    imr::Device& device,
+    GLFWwindow* window,
+    imr::Swapchain& swapchain,
+    World* world, Camera& camera,
+    const std::shared_ptr<CameraInput>& camera_input,
+    const std::shared_ptr<CameraFreelookState>& camera_state
+) : Game(device, window, swapchain, VoxelShaders(device, swapchain, {
+                                                     "voxel.vert.spv",
+                                                     "voxel.frag.spv"
+                                                 }), world, camera, camera_input, camera_state) {}
+
+
 void GameVoxels::renderFrame() {
     if (toggleGreedy) {
         swapchain.drain();
@@ -58,8 +71,8 @@ void GameVoxels::renderFrame() {
     }
 
     swapchain.renderFrameSimplified([&](imr::Swapchain::SimplifiedRenderContext& context) {
-        camera_update(window, &camera_input);
-        camera_move_freelook(&camera, &camera_input, &camera_state, delta);
+        camera_update(window, camera_input.get());
+        camera_move_freelook(&camera, camera_input.get(), camera_state.get(), delta);
 
         auto& image = context.image();
         auto cmdbuf = context.cmdbuf();
@@ -224,8 +237,8 @@ GameMesh::GameMesh(imr::Device& device, GLFWwindow* window, imr::Swapchain& swap
 
 void GameMesh::renderFrame() {
     swapchain.renderFrameSimplified([&](imr::Swapchain::SimplifiedRenderContext& context) {
-        camera_update(window, &camera_input);
-        camera_move_freelook(&camera, &camera_input, &camera_state, delta);
+        camera_update(window, camera_input.get());
+        camera_move_freelook(&camera, camera_input.get(), camera_state.get(), delta);
 
         if (reload_shaders) {
             swapchain.drain();
