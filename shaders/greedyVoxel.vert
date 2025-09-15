@@ -250,7 +250,7 @@ void main() {
     screenSize = push_constants.screen_size;
     quad = (corner * 0.5) + 0.5;
     voxelTextureIndex = voxel.textureIndex;
-    texturesEnabled = int(push_constants.textures);
+    texturesEnabled = int(push_constants.texturesEnabled);
 
     float stochasticCoverage = pointSize * pointSize;
     if (stochasticCoverage < 0.8 && (gl_InstanceIndex & 0xffff) > stochasticCoverage * (0xffff / 0.8)) {
