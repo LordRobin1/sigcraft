@@ -20,7 +20,7 @@ layout(scalar, push_constant) uniform T {
     vec3 camera_position;          // 16 (4 padding)
     VoxelBuffer voxel_buffer;      // 8
     vec2 screen_size;              // 8
-    bool texturesEnabled;          // 4
+    bool textures;                 // 4
     mat4 rotation;                 // 64
     float radius;                  // 4
     float height_adjust;           // 4
@@ -33,7 +33,7 @@ layout(location = 8) out vec2 screenSize;
 layout(location = 9) out mat4 inverseProjViewMatrix;
 layout(location = 13) out vec2 quad;
 layout(location = 14) out uint voxelTextureIndex;
-layout(location = 15) out int texturesEnabled; // bool
+layout(location = 15) out int textures; // bool
 
 // gl_VertexIndex => AABB-corner
 // 0 => bottom-left
@@ -251,7 +251,7 @@ void main() {
     box = Box(wsPosition.xyz, vec3(radius), vec3(invRadius), mat3(push_constants.rotation));
     quad = (corner * 0.5) + 0.5;
     voxelTextureIndex = voxel.textureIndex;
-    texturesEnabled = int(push_constants.texturesEnabled);
+    textures = int(push_constants.textures);
 
     float stochasticCoverage = pointSize * pointSize;
     if (stochasticCoverage < 0.8 && (gl_InstanceIndex & 0xffff) > stochasticCoverage * (0xffff / 0.8)) {

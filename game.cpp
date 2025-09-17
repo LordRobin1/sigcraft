@@ -32,7 +32,7 @@ GameVoxels::GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &
     });
 }
 
-void GameVoxels::renderFrame() {
+void GameVoxels::renderFrame(const bool staticWorld) {
     if (toggleGreedy) {
         swapchain.drain();
         for (const auto chunk : world->loaded_chunks()) {
@@ -129,57 +129,61 @@ void GameVoxels::renderFrame() {
         push_constants.inverse_matrix = invert_mat4(m);
         push_constants.camera_position = camera.position;
         push_constants.screen_size = vec2(context.image().size().width, context.image().size().height);
-        push_constants.texturesEnabled = texturesEnabled;
+        push_constants.textures = texturesEnabled;
 
         context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]{
 
-            auto load_chunk = [&](const int cx, const int cz) {
-                Chunk* loaded = world->get_loaded_chunk(cx, cz);
-                if (!loaded)
-                    world->load_chunk(cx, cz);
-                else {
-                    if (loaded->voxels) return;
-
-                    bool all_neighbours_loaded = true;
-                    ChunkNeighbors n = {};
-                    for (int dx = -1; dx < 2; dx++) {
-                        for (int dz = -1; dz < 2; dz++) {
-                            const int nx = cx + dx;
-                            const int nz = cz + dz;
-
-                            const auto neighborChunk = world->get_loaded_chunk(nx, nz);
-                            if (neighborChunk)
-                                n.neighbours[dx + 1][dz + 1] = &neighborChunk->data;
-                            else
-                                all_neighbours_loaded = false;
-                        }
-                    }
-                    if (all_neighbours_loaded)
-                        loaded->voxels = std::make_unique<ChunkVoxels>(device, n, ivec2{cx, cz}, greedyVoxels, textureManager.m_idToIndex);
-                }
-            };
-
+            constexpr int radius = RENDER_DISTANCE;
             const int player_chunk_x = camera.position.x / 16;
             const int player_chunk_z = camera.position.z / 16;
 
-            constexpr int radius = RENDER_DISTANCE;
-            for (int dx = -radius; dx <= radius; dx++) {
-                for (int dz = -radius; dz <= radius; dz++) {
-                    load_chunk(player_chunk_x + dx, player_chunk_z + dz);
+            if (!staticWorld) {
+                auto load_chunk = [&](const int cx, const int cz) {
+                    Chunk* loaded = world->get_loaded_chunk(cx, cz);
+                    if (!loaded)
+                        world->load_chunk(cx, cz);
+                    else {
+                        if (loaded->voxels) return;
+
+                        bool all_neighbours_loaded = true;
+                        ChunkNeighbors n = {};
+                        for (int dx = -1; dx < 2; dx++) {
+                            for (int dz = -1; dz < 2; dz++) {
+                                const int nx = cx + dx;
+                                const int nz = cz + dz;
+
+                                const auto neighborChunk = world->get_loaded_chunk(nx, nz);
+                                if (neighborChunk)
+                                    n.neighbours[dx + 1][dz + 1] = &neighborChunk->data;
+                                else
+                                    all_neighbours_loaded = false;
+                            }
+                        }
+                        if (all_neighbours_loaded)
+                            loaded->voxels = std::make_unique<ChunkVoxels>(device, n, ivec2{cx, cz}, greedyVoxels, textureManager.m_idToIndex);
+                    }
+                };
+
+                for (int dx = -radius; dx <= radius; dx++) {
+                    for (int dz = -radius; dz <= radius; dz++) {
+                        load_chunk(player_chunk_x + dx, player_chunk_z + dz);
+                    }
                 }
             }
 
              for (const auto chunk : world->loaded_chunks()) {
                  // unload
-                 if (abs(chunk->cx - player_chunk_x) > radius || abs(chunk->cz - player_chunk_z) > radius) {
-                     if (std::unique_ptr<ChunkVoxels> stolen = std::move(chunk->voxels)) {
-                         const ChunkVoxels* released = stolen.release();
-                         context.frame().addCleanupAction([=]{
-                             delete released;
-                         });
+                 if (!staticWorld) {
+                     if (abs(chunk->cx - player_chunk_x) > radius || abs(chunk->cz - player_chunk_z) > radius) {
+                         if (std::unique_ptr<ChunkVoxels> stolen = std::move(chunk->voxels)) {
+                             const ChunkVoxels* released = stolen.release();
+                             context.frame().addCleanupAction([=]{
+                                 delete released;
+                             });
+                         }
+                         world->unload_chunk(chunk);
+                         continue;
                      }
-                     world->unload_chunk(chunk);
-                     continue;
                  }
 
                  const auto& voxels = chunk->voxels;
@@ -222,7 +226,7 @@ GameMesh::GameMesh(imr::Device& device, GLFWwindow* window, imr::Swapchain& swap
     });
 }
 
-void GameMesh::renderFrame() {
+void GameMesh::renderFrame(const bool staticWorld) {
     swapchain.renderFrameSimplified([&](imr::Swapchain::SimplifiedRenderContext& context) {
         camera_update(window, &camera_input);
         camera_move_freelook(&camera, &camera_input, &camera_state, delta);
@@ -298,56 +302,60 @@ void GameMesh::renderFrame() {
         push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
 
         context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]() {
+
             push_constants.matrix = m;
-
-            auto load_chunk = [&](int cx, int cz) {
-                auto loaded = world->get_loaded_chunk(cx, cz);
-                if (!loaded)
-                    world->load_chunk(cx, cz);
-                else {
-                    if (loaded->mesh)
-                        return;
-
-                    bool all_neighbours_loaded = true;
-                    ChunkNeighbors n = {};
-                    for (int dx = -1; dx < 2; dx++) {
-                        for (int dz = -1; dz < 2; dz++) {
-                            int nx = cx + dx;
-                            int nz = cz + dz;
-
-                            auto neighborChunk = world->get_loaded_chunk(nx, nz);
-                            if (neighborChunk)
-                                n.neighbours[dx + 1][dz + 1] = &neighborChunk->data;
-                            else
-                                all_neighbours_loaded = false;
-                        }
-                    }
-                    if (all_neighbours_loaded)
-                        loaded->mesh = std::make_unique<ChunkMesh>(device, n);
-                }
-            };
-
             int player_chunk_x = camera.position.x / 16;
             int player_chunk_z = camera.position.z / 16;
-
             int radius = RENDER_DISTANCE;
-            for (int dx = -radius; dx <= radius; dx++) {
-                for (int dz = -radius; dz <= radius; dz++) {
-                    load_chunk(player_chunk_x + dx, player_chunk_z + dz);
+
+            if (!staticWorld) {
+                auto load_chunk = [&](int cx, int cz) {
+                    auto loaded = world->get_loaded_chunk(cx, cz);
+                    if (!loaded)
+                        world->load_chunk(cx, cz);
+                    else {
+                        if (loaded->mesh)
+                            return;
+
+                        bool all_neighbours_loaded = true;
+                        ChunkNeighbors n = {};
+                        for (int dx = -1; dx < 2; dx++) {
+                            for (int dz = -1; dz < 2; dz++) {
+                                int nx = cx + dx;
+                                int nz = cz + dz;
+
+                                auto neighborChunk = world->get_loaded_chunk(nx, nz);
+                                if (neighborChunk)
+                                    n.neighbours[dx + 1][dz + 1] = &neighborChunk->data;
+                                else
+                                    all_neighbours_loaded = false;
+                            }
+                        }
+                        if (all_neighbours_loaded)
+                            loaded->mesh = std::make_unique<ChunkMesh>(device, n);
+                    }
+                };
+
+                for (int dx = -radius; dx <= radius; dx++) {
+                    for (int dz = -radius; dz <= radius; dz++) {
+                        load_chunk(player_chunk_x + dx, player_chunk_z + dz);
+                    }
                 }
             }
 
             for (auto chunk : world->loaded_chunks()) {
-                if (abs(chunk->cx - player_chunk_x) > radius || abs(chunk->cz - player_chunk_z) > radius) {
-                    std::unique_ptr<ChunkMesh> stolen = std::move(chunk->mesh);
-                    if (stolen) {
-                        ChunkMesh* released = stolen.release();
-                        context.frame().addCleanupAction([=]() {
-                            delete released;
-                        });
+                if (!staticWorld) {
+                    if (abs(chunk->cx - player_chunk_x) > radius || abs(chunk->cz - player_chunk_z) > radius) {
+                        std::unique_ptr<ChunkMesh> stolen = std::move(chunk->mesh);
+                        if (stolen) {
+                            ChunkMesh* released = stolen.release();
+                            context.frame().addCleanupAction([=]() {
+                                delete released;
+                            });
+                        }
+                        world->unload_chunk(chunk);
+                        continue;
                     }
-                    world->unload_chunk(chunk);
-                    continue;
                 }
 
                 auto& mesh = chunk->mesh;
@@ -371,3 +379,55 @@ void GameMesh::renderFrame() {
         glfwPollEvents();
     });
 }
+
+void GameVoxels::loadChunksInDistance(const int renderDistance) {
+    const int player_chunk_x = camera.position.x / 16;
+    const int player_chunk_z = camera.position.z / 16;
+
+    for (int dx = -renderDistance; dx <= renderDistance; dx++) {
+        for (int dz = -renderDistance; dz <= renderDistance; dz++) {
+            Chunk* chunk = world->get_loaded_chunk(player_chunk_x + dx, player_chunk_z + dz);
+            if (!chunk) chunk = world->load_chunk(player_chunk_x + dx, player_chunk_z + dz);
+            if (!chunk) continue;
+
+            if (!chunk->voxels) {
+                ChunkNeighbors n = {};
+                for (int nx = -1; nx <= 1; nx++) {
+                    for (int nz = -1; nz <= 1; nz++) {
+                        Chunk* neighbor = world->get_loaded_chunk(player_chunk_x + dx + nx, player_chunk_z + dz + nz);
+                        if (!neighbor) neighbor = world->load_chunk(player_chunk_x + dx + nx, player_chunk_z + dz + nz);
+                        if (neighbor) n.neighbours[nx + 1][nz + 1] = &neighbor->data;
+                    }
+                }
+                chunk->voxels = std::make_unique<ChunkVoxels>(device, n, ivec2{chunk->cx, chunk->cz}, greedyVoxels, textureManager.m_idToIndex);
+            }
+        }
+    }
+}
+
+void GameMesh::loadChunksInDistance(const int renderDistance) {
+    const int player_chunk_x = camera.position.x / 16;
+    const int player_chunk_z = camera.position.z / 16;
+
+    for (int dx = -renderDistance; dx <= renderDistance; dx++) {
+        for (int dz = -renderDistance; dz <= renderDistance; dz++) {
+            Chunk* chunk = world->get_loaded_chunk(player_chunk_x + dx, player_chunk_z + dz);
+            if (!chunk) chunk = world->load_chunk(player_chunk_x + dx, player_chunk_z + dz);
+            if (!chunk) continue;
+
+            if (!chunk->mesh) {
+                ChunkNeighbors n = {};
+                for (int nx = -1; nx <= 1; nx++) {
+                    for (int nz = -1; nz <= 1; nz++) {
+                        Chunk* neighbor = world->get_loaded_chunk(player_chunk_x + dx + nx, player_chunk_z + dz + nz);
+                        if (!neighbor) neighbor = world->load_chunk(player_chunk_x + dx + nx, player_chunk_z + dz + nz);
+                        if (neighbor) n.neighbours[nx + 1][nz + 1] = &neighbor->data;
+                    }
+                }
+                chunk->mesh = std::make_unique<ChunkMesh>(device, n);
+            }
+        }
+    }
+}
+
+

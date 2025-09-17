@@ -13,6 +13,9 @@ using namespace nasl;
 int main(int argc, char** argv) {
     if (argc < 2) return 0;
 
+    const bool staticWorld = true;
+    const int staticRenderDistance = 12;
+
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
@@ -26,6 +29,7 @@ int main(int argc, char** argv) {
     bool voxels = true;
     bool greedyVoxels = false;
     std::unique_ptr<Game> game = std::make_unique<GameVoxels>(device, window, swapchain, &world, camera, greedyVoxels);
+    if (staticWorld) game->loadChunksInDistance(staticRenderDistance);
 
     while (!glfwWindowShouldClose(window)) {
         fps_counter.tick();
@@ -37,16 +41,18 @@ int main(int argc, char** argv) {
                 greedyVoxels = static_cast<GameVoxels*>(&*game)->greedyVoxels;
                 delete game.release();
                 game = std::make_unique<GameMesh>(device, window, swapchain, &world, camera);
+                if (staticWorld) game->loadChunksInDistance(staticRenderDistance);
                 voxels = false;
                 std::cout << "Switched to mesh mode" << std::endl;
             } else {
                 delete game.release();
                 game = std::make_unique<GameVoxels>(device, window, swapchain, &world, camera, greedyVoxels);
+                if (staticWorld) game->loadChunksInDistance(staticRenderDistance);
                 voxels = true;
                 std::cout << "Switched to voxel mode" << std::endl;
             }
         }
-        game->renderFrame();
+        game->renderFrame(staticWorld);
     }
 
     swapchain.drain();

@@ -39,7 +39,8 @@ public:
     bool toggleMode = false;
     virtual ~Game() = default;
 
-    virtual void renderFrame() = 0;
+    virtual void renderFrame(bool staticWorld) = 0;
+    virtual void loadChunksInDistance(int renderDistance) = 0;
 };
 
 
@@ -66,7 +67,8 @@ private:
 
 public:
     GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &swapchain, World *world, Camera &camera, bool greedyVoxels);
-    void renderFrame() override;
+    void renderFrame(bool staticWorld) override;
+    void loadChunksInDistance(int renderDistance) override;
     bool greedyVoxels;
 };
 
@@ -80,7 +82,8 @@ private:
 
 public:
     GameMesh(imr::Device& device, GLFWwindow* window, imr::Swapchain& swapchain, World* world, Camera& camera);
-    void renderFrame() override;
+    void renderFrame(bool staticWorld) override;
+    void loadChunksInDistance(int renderDistance) override;
 };
 
 
