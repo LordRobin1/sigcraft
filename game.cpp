@@ -28,6 +28,8 @@ GameVoxels::GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &
             game->toggleMode = true;
         } else if (key == GLFW_KEY_F3 && action == GLFW_PRESS) {
             game->texturesEnabled = !game->texturesEnabled;
+        } else if (key == GLFW_KEY_F6 && action == GLFW_PRESS) {
+            game->rotateVoxels = !game->rotateVoxels;
         }
     });
 }
@@ -191,7 +193,8 @@ void GameVoxels::renderFrame(const bool staticWorld) {
                      continue;
 
                  if (!greedyVoxels) {
-                    voxels->update(delta);
+                     voxels->loadingAnimation(delta);
+                     if (rotateVoxels) voxels->rotateAnimation(delta);
                  }
                  push_constants.rotation = voxels->rotation;
                  push_constants.radius = voxels->radius;

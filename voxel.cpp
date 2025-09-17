@@ -186,6 +186,22 @@ ChunkVoxels::ChunkVoxels(
 }
 
 void ChunkVoxels::update(float delta) {
+    loadingAnimation(delta);
+    rotateAnimation(delta);
+}
+
+void ChunkVoxels::rotateAnimation(float delta) {
+    if (is_playing_loading_animation) return;
+
+    const float angle = speed * delta;
+
+    mat4 rotX = rotate_axis_mat4(0, angle * 0.75);
+    mat4 rotY = rotate_axis_mat4(1, angle * 0.75f);
+
+    rotation = rotY * rotX * rotation;
+}
+
+void ChunkVoxels::loadingAnimation(float delta) {
     if (!is_playing_loading_animation) {
         return;
     }

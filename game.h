@@ -51,6 +51,7 @@ private:
     bool toggleGreedy = false;
     int debugShader = 0;
     bool texturesEnabled = true;
+    bool rotateVoxels = false;
     std::vector<std::string> vertexShaders = { "voxel.vert.spv", "greedyVoxel.vert.spv" };
     std::vector<std::string> fragmentShaders = {"voxel.frag.spv", "visualize_billboards.frag.spv", "outline_billboards.frag.spv"};
     struct {

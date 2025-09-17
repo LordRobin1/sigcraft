@@ -75,6 +75,8 @@ struct ChunkVoxels {
     }
 
     void update(float delta);
+    void loadingAnimation(float delta);
+    void rotateAnimation(float delta);
 };
 
 
