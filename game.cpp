@@ -129,7 +129,7 @@ void GameVoxels::renderFrame() {
         push_constants.inverse_matrix = invert_mat4(m);
         push_constants.camera_position = camera.position;
         push_constants.screen_size = vec2(context.image().size().width, context.image().size().height);
-        push_constants.texturesEnabled = texturesEnabled;
+        push_constants.textures = texturesEnabled;
 
         context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]{
 

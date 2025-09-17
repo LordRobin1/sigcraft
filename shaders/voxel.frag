@@ -144,45 +144,36 @@ void main() {
     }
 
     if (texturesEnabled == 1) {
-        vec3 voxelSize = vec3(1.0);
         vec3 intersectionPoint = rayOrigin + rayDirection * distance;
         vec3 localIntersectionPoint = box.rotation * (intersectionPoint - box.center); // rotate around (0, 0, 0)
-        vec3 size = box.radius * 2.0;
         vec3 localPos = (localIntersectionPoint / box.radius) * 0.5 + 0.5; // normalize from [-radius, radius] to [0, 1]
 
         vec3 absLocalIntersection = abs(localIntersectionPoint);
-        vec3 localNormal = vec3(0.0);
-
-        // determine relevant axis
-        if (absLocalIntersection.x >= absLocalIntersection.y && absLocalIntersection.x >= absLocalIntersection.z) {
-            localNormal.x = sign(localIntersectionPoint.x);
-        } else if (absLocalIntersection.y >= absLocalIntersection.z) {
-            localNormal.y = sign(localIntersectionPoint.y);
-        } else {
-            localNormal.z = sign(localIntersectionPoint.z);
-        }
 
         vec2 uv;
         int faceIndex = 0;
 
-        if (abs(localNormal.y) == 1.f) {
+        // determine relevant axis
+        if (absLocalIntersection.x >= absLocalIntersection.y && absLocalIntersection.x >= absLocalIntersection.z) {
+            // side faces
+            uv = vec2(localPos.z, localPos.y);
+        } else if (absLocalIntersection.y >= absLocalIntersection.z) {
             // top-bottom faces
             uv = localPos.xz;
             // differentiate top and bottom
-            faceIndex = (localNormal.y > 0.0) ? 1 : 2;
-        } else if (abs(localNormal.x) == 1.f) {
-            // side faces
-            uv = 1 - vec2(localPos.z, localPos.y);
+            faceIndex = (localIntersectionPoint.y > 0.0) ? 1 : 2;
         } else {
             // front-back faces
-            uv = 1 - vec2(localPos.x, localPos.y);
+            uv = vec2(localPos.x, localPos.y);
         }
 
         int layer = int(voxelTextureIndex) * 3 + faceIndex;
         colorOut = texture(textures, vec3(uv, layer));
+
         // flat shading
         if (faceIndex == 0) colorOut = colorOut * 0.6;
         if (faceIndex == 2) colorOut = colorOut * 0.4;
+
     } else {
         // compute the color
         colorOut = vec4(normal * 0.5 + vec3(0.5), 1.0);
