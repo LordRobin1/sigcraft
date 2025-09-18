@@ -204,3 +204,11 @@ void ChunkVoxels::update(float delta) {
     radius = rad;
     height_adjust = h;
 }
+
+void ChunkVoxels::loop_update(float delta, vec2 chunk_pos) {
+    float abs_pos = chunk_pos.x + chunk_pos.y;
+    height_adjust = sinf(sine_time + abs_pos) * loop_height_amplitude;
+    radius = 0.35f + sinf((sine_time + abs_pos) * 2) * loop_radius_amplitude;
+    rotation = rotate_axis_mat4(0, delta * speed) * rotate_axis_mat4(1, delta * speed) * rotate_axis_mat4(2, delta * speed) * rotation;
+    sine_time += delta * speed;
+}

@@ -54,13 +54,17 @@ struct ChunkVoxels {
     /// 0.0 to 1.0, how far we are through the animation
     float animation_progress = 0.0f;
     /// animation speed multiplier; animation will take roughly 1/speed seconds
-    static constexpr float speed = 0.5f;
+    static constexpr float speed = 1.5f;
     /// whether we are still playing the loading animation
     bool is_playing_loading_animation = true;
     /// where the blocks start in the Y axis
     static constexpr float height_adjust_start = 20.0f;
     /// Gives current adjusted height based on animation progress
     float height_adjust = height_adjust_start;
+
+    float loop_height_amplitude = 3.0f;
+    float loop_radius_amplitude = 0.05f;
+    double sine_time = 0.0;
 
     ChunkVoxels(
         imr::Device& device,
@@ -75,6 +79,8 @@ struct ChunkVoxels {
     }
 
     void update(float delta);
+
+    void loop_update(float delta, vec2 chunk_pos);
 };
 
 

@@ -187,7 +187,7 @@ void GameVoxels::renderFrame() {
                      continue;
 
                  if (!greedyVoxels) {
-                    voxels->update(delta);
+                    voxels->loop_update(delta, vec2(chunk->cx, chunk->cz));
                  }
                  push_constants.rotation = voxels->rotation;
                  push_constants.radius = voxels->radius;

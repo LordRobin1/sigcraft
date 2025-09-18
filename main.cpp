@@ -15,14 +15,14 @@ int main(int argc, char** argv) {
 
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
+    auto window = glfwCreateWindow(1920, 1080, "Example", nullptr, nullptr);
 
     imr::Context context;
     imr::Device device(context);
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
     auto world = World(argv[1]);
-    Camera camera = {{30, 141, -12}, {0, 0}, 90};
+    Camera camera = {{4, 55, 350}, {0, 0}, 90};
     bool voxels = true;
     bool greedyVoxels = false;
     std::unique_ptr<Game> game = std::make_unique<GameVoxels>(device, window, swapchain, &world, camera, greedyVoxels);

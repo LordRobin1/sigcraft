@@ -23,7 +23,7 @@ protected:
     World* world;
     Camera& camera;
     CameraFreelookState camera_state = {
-        .fly_speed = 100.0f,
+        .fly_speed = 25.0f,
         .mouse_sensitivity = 1,
     };
     CameraInput camera_input = {};
