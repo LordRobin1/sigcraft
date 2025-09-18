@@ -40,8 +40,8 @@ struct TextureArray {
  * textures directory.
  *
  * references:
+ * - https://github.com/SaschaWillems/Vulkan/blob/master/examples/texturearray/texturearray.cpp
  * - https://kylehalladay.com/blog/tutorial/vulkan/2018/01/28/Textue-Arrays-Vulkan.html
- * - https://github.com/SaschaWillems/Vulkan/blob/master/examples/texturearray/texturearray.cpp?utm_source=chatgpt.com
  */
 class TextureManager {
 public:
@@ -90,6 +90,6 @@ private:
         std::unique_ptr<TextureArray>& texArray,
         imr::Device& device,
         imr::GraphicsPipeline& pipeline,
-                           const Sampler & sampler
+        const Sampler & sampler
     );
 };
