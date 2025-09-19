@@ -61,85 +61,69 @@ void chunk_voxels(
     }
 }
 
-void greedyMeshSlice(
-    std::array<BitMask, CUNK_CHUNK_SIZE>& maskArray,
-    const int y,
-    const ChunkData* data,
-    const ivec2& chunkPos,
-    const int worldY,
-    ChunkNeighbors& neighbors,
-    std::vector<uint8_t>& voxelBuffer,
-    size_t* numVoxels,
-    const std::unordered_map<BlockId, uint32_t>& idToIdx
+inline bool canExpandX(
+    const std::array<BitMask, CUNK_CHUNK_SIZE>& maskArray,
+    const int xPos,
+    const int yPos,
+    const int zPos,
+    const int xDist,
+    const int yDist,
+    const int zDist
 ) {
-    BitMask& mask = maskArray[y];
-    for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
-        // keep greedily meshing until this row has none of this block type left
-        while (mask.mask[x] != 0) {
-            const int zStart = trailingZeros(mask.mask[x]);
-            const uint16_t shifted = mask.mask[x] >> zStart; // push ones down to LSB
-            const int zLength = trailingOnes(shifted);
-            const int zEnd = zStart + zLength;
-            const uint16_t pattern = ((1u << zLength) - 1) << zStart;
-
-            // expand along x-axis
-            int xEnd = x + 1;
-            while (xEnd < CUNK_CHUNK_SIZE) {
-                // check if all blocks to the side are also valid
-                if ((pattern & mask.mask[xEnd]) != pattern) break;
-                // clear those bits
-                mask.mask[xEnd] &= ~pattern;
-                xEnd++;
+    for (int y = yPos; y < yPos + yDist; y++) {
+        const BitMask& mask = maskArray[y];
+        for (int x = xPos + xDist; x < xPos + xDist + 1; x++) {
+            for (int z = zPos; z < zPos + zDist; z++) {
+                if (x >= CUNK_CHUNK_SIZE || (mask.mask[x] & (1u << z)) == 0)
+                    return false;
             }
-
-            // expand along y-axis
-            int yEnd = y + 1;
-            while (yEnd < CUNK_CHUNK_SIZE) {
-                BitMask& maskAbove = maskArray[yEnd];
-                bool wholeLevelMatches = true;
-                // check if all rows on the layer above are a match
-                for (int xStart = x; xStart < xEnd; xStart++) {
-                    if ((pattern & maskAbove.mask[xStart]) != pattern) {
-                        wholeLevelMatches = false;
-                        break;
-                    }
-                }
-
-                // no match => stop checking
-                if (!wholeLevelMatches) {
-                    break;
-                }
-
-                // match, so we clear all used blocks
-                for (int xStart = x; xStart < xEnd; xStart++) {
-                    maskAbove.mask[xStart] &= ~pattern;
-                }
-                yEnd++;
-            }
-
-            GreedyVoxel gv;
-            gv.start.x = x + chunkPos.x * CUNK_CHUNK_SIZE;
-            gv.start.y = worldY;
-            gv.start.z = zStart + chunkPos.y * CUNK_CHUNK_SIZE;
-
-            gv.end.x = xEnd + chunkPos.x * CUNK_CHUNK_SIZE;
-            gv.end.y = worldY + (yEnd - y);
-            gv.end.z = zEnd + chunkPos.y * CUNK_CHUNK_SIZE;
-
-            gv.color.x = block_colors[mask.type].r;
-            gv.color.y = block_colors[mask.type].g;
-            gv.color.z = block_colors[mask.type].b;
-
-            gv.textureIndex = idToIdx.contains(mask.type) ? idToIdx.at(mask.type) : idToIdx.at(BlockUnknown);
-
-            gv.copy_to(voxelBuffer);
-
-            *numVoxels += 1;
-
-            // clear the used bits
-            mask.mask[x] &= ~pattern;
         }
     }
+    return true;
+}
+
+inline bool canExpandZ(
+    const std::array<BitMask, CUNK_CHUNK_SIZE>& maskArray,
+    const int xPos,
+    const int yPos,
+    const int zPos,
+    const int xDist,
+    const int yDist,
+    const int zDist
+) {
+    for (int y = yPos; y < yPos + yDist; y++) {
+        const BitMask& mask = maskArray[y];
+        for (int x = xPos; x < xPos + xDist; x++) {
+            if ((mask.mask[x] & (1u << (zPos + zDist))) == 0)
+                return false;
+        }
+    }
+    return true;
+}
+
+inline bool canExpandY(
+    const std::array<BitMask, CUNK_CHUNK_SIZE>& maskArray,
+    const int xPos,
+    const int yPos,
+    const int zPos,
+    const int xDist,
+    const int yDist,
+    const int zDist
+) {
+    if (yPos + yDist >= CUNK_CHUNK_SIZE) return false;
+
+    const BitMask& maskAbove = maskArray[yPos + yDist];
+    for (int x = xPos; x < xPos + xDist; x++) {
+        for (int z = zPos; z < zPos + zDist; z++) {
+            if ((maskAbove.mask[x] & (1u << z)) == 0)
+                return false;
+        }
+    }
+    return true;
+}
+
+void tryExpandX() {
+
 }
 
 void greedy_chunk_voxels(
@@ -152,17 +136,68 @@ void greedy_chunk_voxels(
 ) {
     std::array<BitMask, CUNK_CHUNK_SIZE> maskArray;
     // generate a BitMask for each block type, and for each vertical slice
-    for (int i = 1; i < BlockCount; i++) {
+    for (int blockType = 1; blockType < BlockCount; blockType++) {
         for (int section = 0; section < CUNK_CHUNK_SECTIONS_COUNT; section++) {
             for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
-                maskArray[y] = BitMask(chunk, neighbours, toWorldY(section, y), static_cast<BlockId>(i));
+                maskArray[y] = BitMask(chunk, neighbours, toWorldY(section, y), static_cast<BlockId>(blockType));
             }
+
             for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
-                greedyMeshSlice(maskArray, y, chunk, chunkPos, toWorldY(section, y), neighbours, voxel_buffer, num_voxels, idToIdx);
+                for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
+                    for (int z = 0; z < CUNK_CHUNK_SIZE; z++) {
+                        if ((maskArray[y].mask[x] & (1u << z)) == 0) continue;
+
+                        int xDist = 1, yDist = 1, zDist = 1;
+
+                        bool expanded = true;
+                        while (expanded) {
+                            expanded = false;
+                            if (canExpandX(maskArray, x, y, z, xDist, yDist, zDist)) {
+                                xDist++;
+                                expanded = true;
+                            }
+                            if (canExpandZ(maskArray, x, y, z, xDist, yDist, zDist)) {
+                                zDist++;
+                                expanded = true;
+                            }
+                            if (canExpandY(maskArray, x, y, z, xDist, yDist, zDist)) {
+                                yDist++;
+                                expanded = true;
+                            }
+                        }
+
+                        GreedyVoxel gv;
+                        gv.start.x = x + chunkPos.x * CUNK_CHUNK_SIZE;
+                        gv.start.y = toWorldY(section, y);
+                        gv.start.z = z + chunkPos.y * CUNK_CHUNK_SIZE;
+
+                        gv.end.x = x + xDist + chunkPos.x * CUNK_CHUNK_SIZE;
+                        gv.end.y = toWorldY(section, y) + yDist;
+                        gv.end.z = z + zDist + chunkPos.y * CUNK_CHUNK_SIZE;
+
+                        gv.color.x = block_colors[static_cast<BlockId>(blockType)].r;
+                        gv.color.y = block_colors[static_cast<BlockId>(blockType)].g;
+                        gv.color.z = block_colors[static_cast<BlockId>(blockType)].b;
+
+                        gv.textureIndex = idToIdx.contains(static_cast<BlockId>(blockType)) ?
+                                          idToIdx.at(static_cast<BlockId>(blockType)) :
+                                          idToIdx.at(BlockUnknown);
+
+                        gv.copy_to(voxel_buffer);
+                        (*num_voxels)++;
+
+                        // consume useb bits
+                        for (int yy = y; yy < y + yDist; yy++)
+                            for (int xx = x; xx < x + xDist; xx++)
+                                for (int zz = z; zz < z + zDist; zz++)
+                                    maskArray[yy].mask[xx] &= ~(1u << zz);
+                    }
+                }
             }
         }
     }
 }
+
 
 ChunkVoxels::ChunkVoxels(
     imr::Device& device,
