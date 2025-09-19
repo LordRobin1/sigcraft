@@ -29,6 +29,7 @@ protected:
     bool reload_shaders = false;
     uint64_t prev_frame = imr_get_time_nano();
     float delta = 0;
+    bool frustumCulling = true;
 
     Game(imr::Device& device, GLFWwindow* window, imr::Swapchain& swapchain, Shaders shaders, World* world, Camera& camera)
         : device(device), window(window), swapchain(swapchain), shaders(std::move(shaders)), world(world), camera(camera)

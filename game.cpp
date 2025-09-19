@@ -27,6 +27,9 @@ GameVoxels::GameVoxels(imr::Device &device, GLFWwindow *window, imr::Swapchain &
             game->toggleGreedy = true;
         } else if (key == GLFW_KEY_F10 && action == GLFW_PRESS) {
             game->toggleMode = true;
+        } else if (key == GLFW_KEY_F4 && action == GLFW_PRESS) {
+            game->frustumCulling = !game->frustumCulling;
+            std::cout << "Frustum culling " << (game->frustumCulling ? "enabled" : "disabled") << std::endl;
         }
     });
 }
@@ -123,7 +126,7 @@ void GameVoxels::renderFrame() {
         push_constants.camera_position = camera.position;
         push_constants.screen_size = vec2(context.image().size().width, context.image().size().height);
 
-        const auto frustum = Frustum(m, push_constants.inverse_matrix);
+        const auto frustum = frustumCulling ? std::make_unique<Frustum>(m, push_constants.inverse_matrix) : nullptr;
         int culled = 0;
 
         context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]{
@@ -180,9 +183,9 @@ void GameVoxels::renderFrame() {
                  if (!voxels || voxels->num_voxels == 0)
                      continue;
 
-                 push_constants.voxel_buffer = voxels->voxel_buffer_device_address(greedyVoxels);
+                 push_constants.voxel_buffer = voxels->voxel_buffer_device_address();
                 ivec2 pos = {chunk->cx, chunk->cz};
-                if (!frustum.isInside(voxels->getBoundingBox(pos), m)) {
+                if (frustum && !frustum->isInside(voxels->getBoundingBox(pos), m)) {
                     culled++;
                     continue;
                 }
