@@ -149,22 +149,26 @@ void main() {
         vec3 localPos = (localIntersectionPoint / box.radius) * 0.5 + 0.5; // normalize from [-radius, radius] to [0, 1]
 
         vec3 absLocalIntersection = abs(localIntersectionPoint);
+        vec3 normalizedAbs = absLocalIntersection / box.radius;
 
         vec2 uv;
         int faceIndex = 0;
 
         // determine relevant axis
-        if (absLocalIntersection.x >= absLocalIntersection.y && absLocalIntersection.x >= absLocalIntersection.z) {
+        if (normalizedAbs.x >= normalizedAbs.y && normalizedAbs.x >= normalizedAbs.z) {
             // side faces
-            uv = vec2(localPos.z, localPos.y);
-        } else if (absLocalIntersection.y >= absLocalIntersection.z) {
+            vec2 faceSize = vec2(box.radius.z * 2, box.radius.y * 2);
+            uv = vec2(localPos.z, localPos.y) * max(faceSize, 1);
+        } else if (normalizedAbs.y >= normalizedAbs.z) {
             // top-bottom faces
-            uv = localPos.xz;
+            vec2 faceSize = box.radius.xz * 2;
+            uv = localPos.xz *  max(faceSize, 1);
             // differentiate top and bottom
             faceIndex = (localIntersectionPoint.y > 0.0) ? 1 : 2;
         } else {
             // front-back faces
-            uv = vec2(localPos.x, localPos.y);
+            vec2 faceSize = box.radius.xy * 2;
+            uv = vec2(localPos.x, localPos.y) * max(faceSize, 1);
         }
 
         int layer = int(voxelTextureIndex) * 3 + faceIndex;
