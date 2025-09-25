@@ -62,17 +62,13 @@ void chunk_voxels(
 }
 
 void greedyMeshSlice(
-    std::array<BitMask, CUNK_CHUNK_SIZE>& maskArray,
-    const int y,
-    const ChunkData* data,
+    BitMask& mask,
     const ivec2& chunkPos,
     const int worldY,
-    ChunkNeighbors& neighbors,
     std::vector<uint8_t>& voxelBuffer,
     size_t* numVoxels,
     const std::unordered_map<BlockId, uint32_t>& idToIdx
 ) {
-    BitMask& mask = maskArray[y];
     for (int x = 0; x < CUNK_CHUNK_SIZE; x++) {
         // keep greedily meshing until this row has none of this block type left
         while (mask.mask[x] != 0) {
@@ -92,38 +88,13 @@ void greedyMeshSlice(
                 xEnd++;
             }
 
-            // expand along y-axis
-            int yEnd = y + 1;
-            while (yEnd < CUNK_CHUNK_SIZE) {
-                BitMask& maskAbove = maskArray[yEnd];
-                bool wholeLevelMatches = true;
-                // check if all rows on the layer above are a match
-                for (int xStart = x; xStart < xEnd; xStart++) {
-                    if ((pattern & maskAbove.mask[xStart]) != pattern) {
-                        wholeLevelMatches = false;
-                        break;
-                    }
-                }
-
-                // no match => stop checking
-                if (!wholeLevelMatches) {
-                    break;
-                }
-
-                // match, so we clear all used blocks
-                for (int xStart = x; xStart < xEnd; xStart++) {
-                    maskAbove.mask[xStart] &= ~pattern;
-                }
-                yEnd++;
-            }
-
             GreedyVoxel gv;
             gv.start.x = x + chunkPos.x * CUNK_CHUNK_SIZE;
             gv.start.y = worldY;
             gv.start.z = zStart + chunkPos.y * CUNK_CHUNK_SIZE;
 
             gv.end.x = xEnd + chunkPos.x * CUNK_CHUNK_SIZE;
-            gv.end.y = worldY + (yEnd - y);
+            gv.end.y = worldY + 1;
             gv.end.z = zEnd + chunkPos.y * CUNK_CHUNK_SIZE;
 
             gv.color.x = block_colors[mask.type].r;
@@ -150,16 +121,11 @@ void greedy_chunk_voxels(
     size_t* num_voxels,
     const std::unordered_map<BlockId, uint32_t>& idToIdx
 ) {
-    std::array<BitMask, CUNK_CHUNK_SIZE> maskArray;
     // generate a BitMask for each block type, and for each vertical slice
     for (int i = 1; i < BlockCount; i++) {
-        for (int section = 0; section < CUNK_CHUNK_SECTIONS_COUNT; section++) {
-            for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
-                maskArray[y] = BitMask(chunk, neighbours, toWorldY(section, y), static_cast<BlockId>(i));
-            }
-            for (int y = 0; y < CUNK_CHUNK_SIZE; y++) {
-                greedyMeshSlice(maskArray, y, chunk, chunkPos, toWorldY(section, y), neighbours, voxel_buffer, num_voxels, idToIdx);
-            }
+        for (int y = 0; y < CUNK_CHUNK_MAX_HEIGHT; y++) {
+            auto mask = BitMask(chunk, neighbours, y, static_cast<BlockId>(i));
+            greedyMeshSlice(mask, chunkPos, y, voxel_buffer, num_voxels, idToIdx);
         }
     }
 }
@@ -185,7 +151,7 @@ ChunkVoxels::ChunkVoxels(
     }
 }
 
-void ChunkVoxels::update(float delta) {
+void ChunkVoxels::update(const float delta) {
     if (!is_playing_loading_animation) {
         return;
     }
@@ -204,3 +170,5 @@ void ChunkVoxels::update(float delta) {
     radius = rad;
     height_adjust = h;
 }
+
+
