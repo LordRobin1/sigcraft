@@ -54,7 +54,8 @@ Sampler::Sampler(const imr::Device& device) : device(device) {
     vkCreateSampler(device.device, &createInfo, nullptr, &sampler);
 }
 
-TextureManager::TextureManager(imr::Device &device, imr::GraphicsPipeline& pipeline, Sampler& sampler) {
+TextureManager::TextureManager(imr::Device &device, imr::GraphicsPipeline& pipeline, const Sampler& sampler) {
+    stbi_set_flip_vertically_on_load(true);
     TextureData blockData = loadTextureData(TEXTURE_DIR + BLOCKS, m_blockOrder);
     // TextureData liquidData = loadTextureData(TEXTURE_DIR + LIQUID, m_liquidOrder);
 
@@ -224,7 +225,6 @@ TextureManager::TextureData TextureManager::loadTextureData(
         const std::string name = textureFile.path().stem().string();
         const BlockId id = nameToId.at(cleanName(name));
 
-        stbi_set_flip_vertically_on_load(true);
         stbi_uc* data = stbi_load(filePath.c_str(), &w, &h, &c, STBI_rgb_alpha);
         assert(data && "Could not load image data from file");
 

@@ -46,7 +46,7 @@ struct TextureArray {
 class TextureManager {
 public:
     // loads all textures and uploads to the gpu such that shaders can access them
-    TextureManager(imr::Device &device, imr::GraphicsPipeline &pipeline, Sampler &sampler);
+    TextureManager(imr::Device &device, imr::GraphicsPipeline &pipeline, const Sampler &sampler);
     ~TextureManager() = default;
 
     void onShaderReload(imr::GraphicsPipeline& pipeline) const;
